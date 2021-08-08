@@ -10,3 +10,4 @@ from .replay import ReplayPlugin, StoragePolicy, ClassBalancedStoragePolicy, \
 from .strategy_plugin import StrategyPlugin
 from .synaptic_intelligence import SynapticIntelligencePlugin
 from .cope import CoPEPlugin, PPPloss
+from .train_pool import TrainPoolPlugin

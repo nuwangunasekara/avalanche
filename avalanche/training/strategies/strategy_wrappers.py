@@ -17,7 +17,7 @@ from avalanche.models.pnn import PNN
 from avalanche.training.plugins.evaluation import default_logger
 from avalanche.training.plugins import StrategyPlugin, CWRStarPlugin, \
     ReplayPlugin, GDumbPlugin, LwFPlugin, AGEMPlugin, GEMPlugin, EWCPlugin, \
-    EvaluationPlugin, SynapticIntelligencePlugin, CoPEPlugin
+    EvaluationPlugin, SynapticIntelligencePlugin, CoPEPlugin, TrainPoolPlugin
 from avalanche.training.strategies.base_strategy import BaseStrategy
 
 
@@ -306,6 +306,26 @@ class LwF(BaseStrategy):
             evaluator=evaluator, eval_every=eval_every)
 
 
+class TrainPool(BaseStrategy):
+
+    def __init__(self, model: Module, optimizer: Optimizer, criterion,
+                 train_mb_size: int = 1, train_epochs: int = 1,
+                 eval_mb_size: int = None, device=None,
+                 plugins: Optional[List[StrategyPlugin]] = None,
+                 evaluator: EvaluationPlugin = default_logger, eval_every=-1):
+
+        tp = TrainPoolPlugin()
+        if plugins is None:
+            plugins = [tp]
+        else:
+            plugins.append(tp)
+
+        super().__init__(
+            model, optimizer, criterion,
+            train_mb_size=train_mb_size, train_epochs=train_epochs,
+            eval_mb_size=eval_mb_size, device=device, plugins=plugins,
+            evaluator=evaluator, eval_every=eval_every)
+
 class AGEM(BaseStrategy):
 
     def __init__(self, model: Module, optimizer: Optimizer, criterion,
@@ -577,6 +597,7 @@ __all__ = [
     'Replay',
     'GDumb',
     'LwF',
+    'TrainPool',
     'AGEM',
     'GEM',
     'EWC',
