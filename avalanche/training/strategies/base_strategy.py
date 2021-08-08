@@ -455,7 +455,8 @@ class BaseStrategy:
             self._unpack_minibatch()
             self.before_training_iteration(**kwargs)
 
-            self.optimizer.zero_grad()
+            if self.optimizer is not None:
+                self.optimizer.zero_grad()
             self.loss = 0
 
             # Forward
@@ -464,15 +465,18 @@ class BaseStrategy:
             self.after_forward(**kwargs)
 
             # Loss & Backward
-            self.loss += self.criterion()
+            if self._criterion is not None:
+                self.loss += self.criterion()
 
             self.before_backward(**kwargs)
-            self.loss.backward()
+            if self._criterion is not None:
+                self.loss.backward()
             self.after_backward(**kwargs)
 
             # Optimization step
             self.before_update(**kwargs)
-            self.optimizer.step()
+            if self.optimizer is not None:
+                self.optimizer.step()
             self.after_update(**kwargs)
 
             self.after_training_iteration(**kwargs)
@@ -566,7 +570,8 @@ class BaseStrategy:
             self.before_eval_forward(**kwargs)
             self.mb_output = self.forward()
             self.after_eval_forward(**kwargs)
-            self.loss = self.criterion()
+            if self._criterion is not None:
+                self.loss = self.criterion()
 
             self.after_eval_iteration(**kwargs)
 

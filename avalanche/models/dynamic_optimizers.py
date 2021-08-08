@@ -27,6 +27,9 @@ def reset_optimizer(optimizer, model):
     :param model:
     :return:
     """
+    if optimizer is None:
+        return
+
     assert len(optimizer.param_groups) == 1
     optimizer.state = defaultdict(dict)
     optimizer.param_groups[0]['params'] = list(model.parameters())
