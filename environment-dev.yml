@@ -28,6 +28,12 @@ dependencies:
 - conda-forge::astroid=2.4.2
 - conda-forge::sphinx-autoapi
 - conda-forge::pycocotools
+- pandas
 - pip:
     - pytorchcv
     - gdown
+    - scikit-multiflow
+    - torch
+    - torchvision
+    - torchaudio
+    - openpyxl
