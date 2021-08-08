@@ -16,3 +16,4 @@ from .utils import *
 from .slda_resnet import SLDAResNetModel
 from .icarl_resnet import *
 from .ncm_classifier import NCMClassifier
+from .MultiMLP import MultiMLP
