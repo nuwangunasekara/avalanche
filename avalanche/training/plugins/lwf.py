@@ -1,4 +1,5 @@
 import copy
+import sys
 
 import torch
 
@@ -53,10 +54,13 @@ class LwFPlugin(StrategyPlugin):
         """
         Add distillation loss
         """
-        alpha = self.alpha[strategy.training_exp_counter] \
-            if isinstance(self.alpha, (list, tuple)) else self.alpha
-        penalty = self.penalty(strategy.mb_output, strategy.mb_x, alpha)
-        strategy.loss += penalty
+        try:
+            alpha = self.alpha[strategy.training_exp_counter] \
+                if isinstance(self.alpha, (list, tuple)) else self.alpha
+            penalty = self.penalty(strategy.mb_output, strategy.mb_x, alpha)
+            strategy.loss += penalty
+        except:
+            print('Runtime exception: ', sys.exc_info()[0], 'occurred')
 
     def after_training_exp(self, strategy, **kwargs):
         """
