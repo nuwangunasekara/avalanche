@@ -1,21 +1,18 @@
 #!/bin/bash
-
-conda_env_path=$1
-conda_yml_file=$2
-#scikit_multiflow_path=$3
-
 if [ $# -lt 2 ]; then
   echo "$#"
-  echo "$0 <conda_env_path> <conda_yml_file>"
+  echo "$0 <conda_env_path> <avalanche_source_path>"
   exit 1
 else
   echo  "$@"
 fi
 
+conda_env_path=$1
+avalanche_source_path=$2
+conda_yml_file="${avalanche_source_path}/environment-dev.yml"
 
 eval "$(conda shell.bash hook)"
 conda init bash
-
 
 re_init_conda_env ()
 {
@@ -31,7 +28,8 @@ re_init_conda_env ()
   conda activate $conda_env_path
   conda env list
 
-  #pip3 install -e $scikit_multiflow_path
+  #pip3 install -e $avalanche_source_path
+  pip install -U "$avalanche_source_path"
 }
 
 re_init_conda_env
