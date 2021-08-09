@@ -1,8 +1,8 @@
 print_usage()
 {
   echo "Usage: $0 <app_path> <exp_path> <conda_path>"
-  echo "e.g:   $0 /Scratch/ng98/CL/avalanche_nuwan_fork/ /Scratch/ng98/CL/results/ /Scratch/ng98/CL/conda"
-  echo "e.g:   $0 ~/Desktop/avalanche_nuwan_fork/ ~/Desktop/CL/results/ /Users/ng98/miniconda3/envs/avalanche-dev-env"
+  echo "e.g:   $0 /Scratch/ng98/CL/avalanche_nuwan_fork/exp_scripts/train_pool.py /Scratch/ng98/CL/results/ /Scratch/ng98/CL/conda"
+  echo "e.g:   $0 ~/Desktop/avalanche_nuwan_fork/exp_scripts/train_pool.py ~/Desktop/CL/results/ /Users/ng98/miniconda3/envs/avalanche-dev-env"
 }
 
 #clean_dir="TRUE"
@@ -10,9 +10,9 @@ clean_dir="FALSE"
 #dataset=(LED_a LED_a_ex RotatedMNIST RotatedCIFAR10)
 dataset=(LED_a RotatedMNIST RotatedCIFAR10 CORe50)
 dataset=(RotatedMNIST RotatedCIFAR10 CORe50)
-dataset=(CORe50)
+dataset=(RotatedMNIST)
 strategy=(TrainPool LwF EWC GDumb)
-strategy=(TrainPool)
+strategy=(GDumb)
 
 mini_batch_size='10'
 
