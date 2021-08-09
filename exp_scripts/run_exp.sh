@@ -4,15 +4,15 @@ print_usage()
   echo "e.g:   $0 /Scratch/ng98/CL/avalanche_nuwan_fork/exp_scripts/train_pool.py /Scratch/ng98/CL/results/ /Scratch/ng98/CL/conda"
   echo "e.g:   $0 ~/Desktop/avalanche_nuwan_fork/exp_scripts/train_pool.py ~/Desktop/CL/results/ /Users/ng98/miniconda3/envs/avalanche-dev-env"
 }
-
-#clean_dir="TRUE"
-clean_dir="FALSE"
+cuda=0
+clean_dir="TRUE"
+#clean_dir="FALSE"
 #dataset=(LED_a LED_a_ex RotatedMNIST RotatedCIFAR10)
 dataset=(LED_a RotatedMNIST RotatedCIFAR10 CORe50)
 dataset=(RotatedMNIST RotatedCIFAR10 CORe50)
-dataset=(RotatedMNIST)
+#dataset=(RotatedMNIST)
 strategy=(TrainPool LwF EWC GDumb)
-strategy=(GDumb)
+#strategy=(GDumb)
 
 mini_batch_size='10'
 
@@ -36,6 +36,7 @@ fi
 app_path=$1
 base_dir=$2
 
+echo "Activating conda environment $3"
 eval "$(conda shell.bash hook)"
 conda init bash
 conda activate "$3"
@@ -57,11 +58,6 @@ else
 fi
 
 
-eval "$(conda shell.bash hook)"
-conda init bash
-conda activate /Users/ng98/Desktop/avalanche_nuwan_fork/avalanche-dev
-conda env list
-
 for (( j=0; j<${#dataset[@]}; j++ ))
 do
   for (( i=0; i<${#strategy[@]}; i++ ))
@@ -73,7 +69,7 @@ do
     fi
     for (( k=0; k<${#tp_predict_methods[@]}; k++ ))
     do
-      command_args="--base_dir $base_dir --dataset ${dataset[$j]} --strategy ${strategy[$i]} --minibatch_size ${mini_batch_size}"
+      command_args="--base_dir $base_dir --dataset ${dataset[$j]} --strategy ${strategy[$i]} --minibatch_size ${mini_batch_size} --cuda ${cuda}"
           log_file_name="${dataset[$j]}_${strategy[$i]}_mb_${mini_batch_size}"
       case ${strategy[$i]} in
         LwF)
@@ -85,8 +81,8 @@ do
           log_file_name="${log_file_name}_${model}"
           ;;
         GDumb)
-          command_args="${command_args} --module ${model} --optimizer ${optimizer} --lr ${l_rate} --hs 1024"
-          log_file_name="${log_file_name}_${model}"
+          command_args="${command_args} --module ${model} --optimizer ${optimizer} --lr ${l_rate} --hs 1024 --mem_buff_size 1000"
+          log_file_name="${log_file_name}_${model}_b1000"
           ;;
         TrainPool)
           tp_predict_method=${tp_predict_methods[$k]}
