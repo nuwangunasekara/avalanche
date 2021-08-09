@@ -263,6 +263,7 @@ class ANN:
         else:
             self.net = PyNet(hidden_layers=self.hidden_layers_for_MLP, num_classes=self.num_classes,
                              input_dimensions=input_dimensions)
+        self.net.to(self.device)
         self.initialize_net_para()
 
     def train_net(self, x, y, c, r, task_id):
@@ -271,14 +272,8 @@ class ANN:
 
         self.samples_seen_at_train += r
 
-        if torch.cuda.is_available():
-            if self.device.type == 'cpu':
-                pass
-            else:
-                x = x.to(self.device)
-                y = y.to(self.device)
-        else:
-            pass
+        x = x.to(self.device)
+        y = y.to(self.device)
 
         self.optimizer.zero_grad()  # zero the gradient buffers
         # forward propagation
