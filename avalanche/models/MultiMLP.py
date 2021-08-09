@@ -227,6 +227,7 @@ class ANN:
             self.adwin_delta)
 
     def init_optimizer(self):
+        self.net.to(self.device)
         if self.optimizer_type == OP_TYPE_ADAGRAD or self.optimizer_type == OP_TYPE_ADAGRAD_NC:
             self.optimizer = optim.Adagrad(self.net.parameters(), lr=self.learning_rate, lr_decay=0, weight_decay=0,
                                            initial_accumulator_value=0, eps=1e-10)
@@ -263,7 +264,6 @@ class ANN:
         else:
             self.net = PyNet(hidden_layers=self.hidden_layers_for_MLP, num_classes=self.num_classes,
                              input_dimensions=input_dimensions)
-        self.net.to(self.device)
         self.initialize_net_para()
 
     def train_net(self, x, y, c, r, task_id):
