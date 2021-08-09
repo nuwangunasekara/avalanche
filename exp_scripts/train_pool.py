@@ -208,7 +208,7 @@ def main(args):
                        evaluator=eval_plugin)
     elif args.strategy == 'GDumb':
         strategy = GDumb(model, optimizer, criterion,
-                         mem_size=2000,
+                         mem_size=args.mem_buff_size,
                          train_epochs=args.epochs, device=device, train_mb_size=args.minibatch_size,
                          evaluator=eval_plugin)
 
@@ -251,6 +251,8 @@ if __name__ == '__main__':
                         help='Number of training epochs.')
     parser.add_argument('--minibatch_size', type=int, default=100,
                         help='Minibatch size.')
+    parser.add_argument('--mem_buff_size', type=int, default=1000,
+                        help='Memory buffer size for replay methods(GDumb)')
     parser.add_argument('--cuda', type=int, default=0,
                         help='Specify GPU id to use. Use CPU if -1.')
     parser.add_argument('--dataset', type=str, default='RotatedMNIST',
