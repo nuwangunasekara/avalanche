@@ -4,22 +4,20 @@ print_usage()
   echo "e.g:   $0 /Scratch/ng98/CL/avalanche_nuwan_fork/exp_scripts/train_pool.py /Scratch/ng98/CL/results/ /Scratch/ng98/CL/conda"
   echo "e.g:   $0 ~/Desktop/avalanche_nuwan_fork/exp_scripts/train_pool.py ~/Desktop/CL/results/ /Users/ng98/miniconda3/envs/avalanche-dev-env"
 }
-cuda=0
+cuda='0'
 clean_dir="TRUE"
-#clean_dir="FALSE"
-#dataset=(LED_a LED_a_ex RotatedMNIST RotatedCIFAR10)
+clean_dir="FALSE"
+
 dataset=(LED_a RotatedMNIST RotatedCIFAR10 CORe50)
 dataset=(RotatedMNIST RotatedCIFAR10 CORe50)
-#dataset=(RotatedMNIST)
-strategy=(TrainPool LwF EWC GDumb)
-#strategy=(GDumb)
+dataset=(RotatedMNIST RotatedCIFAR10)
+strategy=(LwF EWC GDumb TrainPool)
 
 mini_batch_size='10'
 
 tp_pool_type='6CNN'
 tp_number_of_nns_to_train='6'
-tp_predict_methods_array=('ONE_CLASS' 'MAJORITY_VOTE' 'RANDOM' 'NAIVE_BAYES' 'TASK_ID_KNOWN')
-#tp_predict_methods_array=('ONE_CLASS')
+tp_predict_methods_array=('ONE_CLASS' 'ONE_CLASS_end' 'MAJORITY_VOTE' 'RANDOM' 'NAIVE_BAYES' 'NAIVE_BAYES_end' 'TASK_ID_KNOWN')
 
 model='SimpleCNN'
 optimizer='Adam'
@@ -86,13 +84,26 @@ do
           ;;
         TrainPool)
           tp_predict_method=${tp_predict_methods[$k]}
-          command_args="${command_args} --module MultiMLP --pool_type ${tp_pool_type} --number_of_mpls_to_train ${tp_number_of_nns_to_train} --skip_back_prop_threshold 0.0 --predict_method ${tp_predict_method}"
-          if [ "${tp_predict_method}" = "ONE_CLASS" ] ; then
-            log_file_name_post_fix='_All_at_the_end'
-          else
-            log_file_name_post_fix=''
-          fi
-          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_number_of_nns_to_train}_${tp_predict_method}${log_file_name_post_fix}"
+          tp_p_method="${tp_predict_method}"
+          tp_train_p_type='--no-train_task_predictor_at_the_end'
+          case ${tp_predict_method} in
+            ONE_CLASS)
+              ;;
+            ONE_CLASS_end)
+              tp_train_p_type='--train_task_predictor_at_the_end'
+              tp_p_method='ONE_CLASS'
+              ;;
+            NAIVE_BAYES)
+              ;;
+            NAIVE_BAYES_end)
+              tp_train_p_type='--train_task_predictor_at_the_end'
+              tp_p_method='NAIVE_BAYES'
+              ;;
+            *)
+              ;;
+          esac
+          command_args="${command_args} --module MultiMLP --pool_type ${tp_pool_type} --number_of_mpls_to_train ${tp_number_of_nns_to_train} --skip_back_prop_threshold 0.0 --task_detector_type ${tp_p_method} ${tp_train_p_type}"
+          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_number_of_nns_to_train}_${tp_predict_method}"
           ;;
         *)
           command_args=""

@@ -90,10 +90,13 @@ def scenario_from_csv_with_drift(csv_file, n_classes, n_input_features, minibatc
 def main(args):
     # check if selected GPU is available or use CPU
     assert args.cuda == -1 or args.cuda >= 0, "cuda must be -1 or >= 0."
+    print("======\n")
     device = torch.device(f"cuda:{args.cuda}"
                           if torch.cuda.is_available() and
                              args.cuda >= 0 else "cpu")
+    print("CUDA version: {}".format(torch.version.cuda))
     print(f'Using device: {device}')
+    print("======\n")
 
     # create streams
     if args.dataset == 'RotatedMNIST':
@@ -140,17 +143,17 @@ def main(args):
         else:
             optimizer = None
     elif args.module == 'MultiMLP':
-        if args.predict_method == 'ONE_CLASS':
+        if args.task_detector_type == 'ONE_CLASS':
             predict_method = PREDICT_METHOD_ONE_CLASS
-        elif args.predict_method == 'MAJORITY_VOTE':
+        elif args.task_detector_type == 'MAJORITY_VOTE':
             predict_method = PREDICT_METHOD_MAJORITY_VOTE
-        elif args.predict_method == 'RANDOM':
+        elif args.task_detector_type == 'RANDOM':
             predict_method = PREDICT_METHOD_RANDOM
-        elif args.predict_method == 'TASK_ID_KNOWN':
+        elif args.task_detector_type == 'TASK_ID_KNOWN':
             predict_method = PREDICT_METHOD_TASK_ID_KNOWN
-        elif args.predict_method == 'NW_CONFIDENCE':
+        elif args.task_detector_type == 'NW_CONFIDENCE':
             predict_method = PREDICT_METHOD_NW_CONFIDENCE
-        elif args.predict_method == 'NAIVE_BAYES':
+        elif args.task_detector_type == 'NAIVE_BAYES':
             predict_method = PREDICT_METHOD_NAIVE_BAYES
 
         model = MultiMLP(
@@ -161,7 +164,8 @@ def main(args):
             predict_method=predict_method,
             nn_pool_type=args.pool_type,
             back_prop_skip_loss_threshold=args.skip_back_prop_threshold,
-            device=device)
+            device=device,
+            train_task_predictor_at_the_end=args.train_task_predictor_at_the_end)
         optimizer = None
 
     criterion = torch.nn.CrossEntropyLoss()
@@ -269,7 +273,7 @@ if __name__ == '__main__':
                         help='Number of MPLs to train for MultiMLP.')
     parser.add_argument('--pool_type', type=str, default='6CNN',
                         help='Pool type for MultiMLP.')
-    parser.add_argument('--predict_method', type=str, default='ONE_CLASS',
+    parser.add_argument('--task_detector_type', type=str, default='ONE_CLASS',
                         choices=['ONE_CLASS', 'MAJORITY_VOTE', 'RANDOM', 'TASK_ID_KNOWN', 'NW_CONFIDENCE',
                                  'NAIVE_BAYES'],
                         help='Prediction method for MultiMLP: '
@@ -278,6 +282,9 @@ if __name__ == '__main__':
                         help='back_prop_skip_loss_threshold for MultiMLP')
     parser.add_argument('--log_file_name', type=str, default='',
                         help='Log file name')
+    parser.add_argument('--train_task_predictor_at_the_end', dest='train_task_predictor_at_the_end', action='store_true')
+    parser.add_argument('--no-train_task_predictor_at_the_end', dest='train_task_predictor_at_the_end', action='store_false')
+    parser.set_defaults(train_task_predictor_at_the_end=False)
 
     args = parser.parse_args()
 

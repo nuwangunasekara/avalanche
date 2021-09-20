@@ -77,16 +77,14 @@ class SimpleCNN(nn.Module):
             nn.Linear(64, num_classes)
         )
 
-    def forward(self, x, one_class_x=None):
+    def forward(self, x, learned_features=None):
         x = self.features(x)
         x = x.view(x.size(0), -1)
 
-        if one_class_x:
-            # Add to one class features
-            if one_class_x[0] is None:
-                one_class_x[0] = x.detach()
-            # else:
-            #     one_class_x[0] = torch.cat([one_class_x[0], x.detach()], dim=0)
+        if learned_features:
+            # pass learned features from last layer
+            if learned_features[0] is None:
+                learned_features[0] = x.detach()
 
         x = self.classifier(x)
         return x
@@ -128,13 +126,11 @@ class PyNet(nn.Module):
 
         self.linear = nn.ModuleList(linear)
 
-    def forward(self, X, one_class_x=None):
-        if one_class_x:
-            # Add to one class features
-            if one_class_x[0] is None:
-                one_class_x[0] = X.detach()
-            # else:
-            #     one_class_x[0] = torch.cat([one_class_x[0], X.detach()], dim=0)
+    def forward(self, X, learned_features=None):
+        if learned_features:
+            # pass learned features from last layer
+            if learned_features[0] is None:
+                learned_features[0] = X.detach()
 
         x = X
         for i, l in enumerate(self.linear):
@@ -142,7 +138,6 @@ class PyNet(nn.Module):
                 x = l(x)
             else:
                 x = self.f[i](l(x))
-            # x = self.f[i](l(x))
         return x
 
 
@@ -159,7 +154,8 @@ class ANN:
                  adwin_delta=1e-3,
                  use_adwin=False,
                  task_detector_type=PREDICT_METHOD_ONE_CLASS,
-                 back_prop_skip_loss_threshold=0.6):
+                 back_prop_skip_loss_threshold=0.6,
+                 train_task_predictor_at_the_end=True):
         # configuration variables (which has the same name as init parameters)
         self.id = id
         self.model_name = None
@@ -175,20 +171,20 @@ class ANN:
         self.back_prop_skip_loss_threshold = back_prop_skip_loss_threshold
         self.use_adwin = use_adwin
         self.task_detector_type = task_detector_type
+        self.train_task_predictor_at_the_end = train_task_predictor_at_the_end
 
         # status variables
         self.net = None
         self.optimizer = None
         self.criterion = None
         self.loss = None
-
         self.samples_seen_at_train = 0
         self.trained_count = 0
         self.chosen_for_test = 0
         self.chosen_after_train = 0
         self.estimator: BaseDriftDetector = None
         self.accumulated_loss = 0
-        self.one_class_x = [None]
+        self.learned_features_x = [None]
         self.one_class_detector = None
         self.naive_bayes = None
         self.init_values()
@@ -199,11 +195,13 @@ class ANN:
         self.optimizer = None
         self.criterion = None
         self.loss = None
-        self.device = None
         self.samples_seen_at_train = 0
+        self.trained_count = 0
+        self.chosen_for_test = 0
+        self.chosen_after_train = 0
         self.estimator = ADWIN(delta=self.adwin_delta)
         self.accumulated_loss = 0
-        self.one_class_x = [None]
+        self.learned_features_x = [None]
         self.one_class_detector = OneClassSVM(gamma='auto')
         self.naive_bayes = NaiveBayes()
 
@@ -266,7 +264,7 @@ class ANN:
                              input_dimensions=input_dimensions)
         self.initialize_net_para()
 
-    def train_net(self, x, y, c, r, task_id):
+    def train_net(self, x, y, c, r, task_id, use_instances_for_task_detector_training):
         if self.net is None:
             self.initialize_network(x, input_dimensions=c)
 
@@ -277,25 +275,25 @@ class ANN:
 
         self.optimizer.zero_grad()  # zero the gradient buffers
         # forward propagation
-        one_class_x = None
-        one_class_rand_init = random.randint(0, 0)
-        if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or (self.task_detector_type == PREDICT_METHOD_ONE_CLASS and one_class_rand_init == 0):
-            one_class_x = [None]
-        outputs = self.net(x, one_class_x=one_class_x)
-        if self.task_detector_type == PREDICT_METHOD_ONE_CLASS and one_class_rand_init == 0:
-            if self.one_class_x[0] is None:
-                self.one_class_x[0] = one_class_x[0]
-            else:
-                self.one_class_x[0] = torch.cat([self.one_class_x[0], one_class_x[0]], dim=0)
-        elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
-            # nb_y = np.empty((one_class_x[0].shape[0], ), dtype=np.int64)
-            # nb_y.fill(task_id)
-            # self.naive_bayes.partial_fit(one_class_x[0].numpy(), nb_y)
-            # self.naive_bayes.partial_fit(one_class_x[0].numpy(), nb_y)
+        learned_features = None
+        if (self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_ONE_CLASS) and use_instances_for_task_detector_training and not self.train_task_predictor_at_the_end:
+            learned_features = [None]
 
-            nb_y = np.empty((one_class_x[0].shape[0],), dtype=np.int64)
-            nb_y.fill(task_id)
-            self.naive_bayes.partial_fit(one_class_x[0].numpy(), nb_y)
+        outputs = self.net(x, learned_features=learned_features)
+
+        if self.train_task_predictor_at_the_end:
+            pass
+        else: # train task predictor online using current learned_features
+            if self.task_detector_type == PREDICT_METHOD_ONE_CLASS and use_instances_for_task_detector_training:
+                if self.learned_features_x[0] is None:
+                    self.learned_features_x[0] = learned_features[0].cpu()
+                else:
+                    self.learned_features_x[0] = torch.cat([self.learned_features_x[0], learned_features[0].cpu()], dim=0)
+            elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
+                nb_y = np.empty((learned_features[0].shape[0],), dtype=np.int64)
+                nb_y.fill(task_id)
+                self.naive_bayes.partial_fit(learned_features[0].cpu().numpy(), nb_y)
+
 
 
         # backward propagation
@@ -340,8 +338,8 @@ def flatten_dimensions(mb_x):
     return c, x.view(x.size(0), c)
 
 
-def net_train(net: ANN, x: np.ndarray, r, c, y: np.ndarray, task_id):
-    net.train_net(x, y, c, r, task_id)
+def net_train(net: ANN, x: np.ndarray, r, c, y: np.ndarray, task_id, use_instances_for_task_detector_training):
+    net.train_net(x, y, c, r, task_id, use_instances_for_task_detector_training)
 
 
 def sort_by_loss(k: ANN):
@@ -361,6 +359,7 @@ class MultiMLP(nn.Module):
                  stats_print_frequency=0,
                  nn_pool_type='30MLP',
                  predict_method=PREDICT_METHOD_ONE_CLASS,
+                 train_task_predictor_at_the_end=True,
                  device='cpu'):
         super().__init__()
 
@@ -375,7 +374,8 @@ class MultiMLP(nn.Module):
         self.stats_print_frequency = stats_print_frequency
         self.back_prop_skip_loss_threshold = back_prop_skip_loss_threshold
         self.nn_pool_type = nn_pool_type
-        self.predict_method = predict_method
+        self.task_detector_type = predict_method
+        self.train_task_predictor_at_the_end = train_task_predictor_at_the_end
         self.device = device
 
         # status variables
@@ -392,6 +392,7 @@ class MultiMLP(nn.Module):
         self.mb_task_id = None
         self.available_nn_id = 0
         self.task_id = 0
+        self.accumulated_x = [None]
         # self.learned_tasks = [0]
 
         self.init_values()
@@ -457,9 +458,10 @@ class MultiMLP(nn.Module):
                                   adwin_delta=self.adwin_delta,
                                   use_adwin=self.use_adwin,
                                   back_prop_skip_loss_threshold=self.back_prop_skip_loss_threshold,
-                                  task_detector_type=self.predict_method,
+                                  task_detector_type=self.task_detector_type,
                                   num_classes=self.num_classes,
-                                  device=self.device)
+                                  device=self.device,
+                                  train_task_predictor_at_the_end=self.train_task_predictor_at_the_end)
                     self.train_nets.append(tmp_ann)
                     self.available_nn_id += 1
 
@@ -520,9 +522,10 @@ class MultiMLP(nn.Module):
             else:
                 xx = x_flatten
             if predictor == PREDICT_METHOD_ONE_CLASS:
-                predictions.append(self.frozen_nets[i].one_class_detector.predict(xx.numpy()))
+                predictions.append(self.frozen_nets[i].one_class_detector.predict(xx.cpu().numpy()))
             elif predictor == PREDICT_METHOD_NAIVE_BAYES:
-                predictions.append(np.insert(self.frozen_nets[i].naive_bayes.predict_proba(xx.numpy()).sum(axis=0), 0, np.zeros(len(self.frozen_nets) - i - 1)))
+                # pre and post pad 0's to get array length len(self.frozen_nets)
+                predictions.append(np.pad(self.frozen_nets[i].naive_bayes.predict_proba(xx.cpu().numpy()).sum(axis=0), (0, len(self.frozen_nets) - 1 - i), 'constant', constant_values=(0, 0)))
 
         if predictor == PREDICT_METHOD_ONE_CLASS:
             best_matched_frozen_nn_index = np.argmax(np.array(predictions).sum(axis=1), axis=0).item()
@@ -535,14 +538,48 @@ class MultiMLP(nn.Module):
         self.train_nets.sort(key=sort_by_loss)
         return 0
 
+    def reset(self):
+        # configuration variables (which has the same name as init parameters) should be copied by the caller function
+        for i in range(len(self.train_nets)):
+            self.train_nets[i] = None
+        self.train_nets = None
+        self.train_nets = []  # type: List[ANN]
+        self.create_nn_pool()
+        return self
+
+    @torch.no_grad()
     def add_nn_with_lowest_loss_to_frozen_list(self):
-        self.task_id += 1
-        # self.learned_tasks.append(self.task_id)
         idx = self.get_train_nn_index_with_lowest_loss()
-        if self.predict_method == PREDICT_METHOD_ONE_CLASS:
-            self.train_nets[idx].one_class_detector.fit(self.train_nets[idx].one_class_x[0].numpy())
-            self.train_nets[idx].one_class_x[0] = None
+
+        for i in range(len(self.train_nets)):
+            if i != idx:  # clear other nets memory
+                self.train_nets[i] = None
+
+        if self.train_task_predictor_at_the_end:
+            self.train_nets[idx].learned_features_x[0] = None  # clear this memory
+
+            learned_features = [None]
+            device = torch.device('cpu')
+            self.train_nets[idx].net.to(device)  # move the model to cpu
+
+            # fills learned_features
+            outputs = self.train_nets[idx].net(self.accumulated_x[0].to(device), learned_features=learned_features)
+
+            if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
+                self.train_nets[idx].one_class_detector.fit(learned_features[0].cpu().numpy())
+            elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
+                nb_y = np.empty((learned_features[0].shape[0],), dtype=np.int64)
+                nb_y.fill(self.task_id)
+                self.train_nets[idx].naive_bayes.partial_fit(learned_features[0].cpu().numpy(), nb_y)
+            self.train_nets[idx].net.to(self.train_nets[idx].device)   # move the model back to original device
+        else:
+            if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
+                self.train_nets[idx].one_class_detector.fit(self.train_nets[idx].learned_features_x[0].numpy())
+                self.train_nets[idx].learned_features_x[0] = None
         self.frozen_nets.append(self.train_nets[idx])
+        self.task_id += 1
+        self.accumulated_x = None
+        self.accumulated_x = [None]
 
     def forward(self, x):
         r = x.shape[0]
@@ -556,22 +593,22 @@ class MultiMLP(nn.Module):
             if true_task_id < len(self.frozen_nets):
                 self.test_samples_seen_for_learned_tasks += r
 
-            if self.predict_method == PREDICT_METHOD_ONE_CLASS \
-                    or self.predict_method == PREDICT_METHOD_RANDOM \
-                    or self.predict_method == PREDICT_METHOD_TASK_ID_KNOWN \
-                    or self.predict_method == PREDICT_METHOD_NW_CONFIDENCE \
-                    or self.predict_method == PREDICT_METHOD_NAIVE_BAYES:
-                if self.predict_method == PREDICT_METHOD_ONE_CLASS:
-                    best_matched_frozen_nn_index = self.get_best_matched_frozen_nn_index_using_a_predictor(x, x_flatten, self.predict_method)
-                elif self.predict_method == PREDICT_METHOD_NAIVE_BAYES:
-                    best_matched_frozen_nn_index = self.get_best_matched_frozen_nn_index_using_a_predictor(x, x_flatten, self.predict_method)
-                elif self.predict_method == PREDICT_METHOD_RANDOM:
+            if self.task_detector_type == PREDICT_METHOD_ONE_CLASS \
+                    or self.task_detector_type == PREDICT_METHOD_RANDOM \
+                    or self.task_detector_type == PREDICT_METHOD_TASK_ID_KNOWN \
+                    or self.task_detector_type == PREDICT_METHOD_NW_CONFIDENCE \
+                    or self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
+                if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
+                    best_matched_frozen_nn_index = self.get_best_matched_frozen_nn_index_using_a_predictor(x, x_flatten, self.task_detector_type)
+                elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
+                    best_matched_frozen_nn_index = self.get_best_matched_frozen_nn_index_using_a_predictor(x, x_flatten, self.task_detector_type)
+                elif self.task_detector_type == PREDICT_METHOD_RANDOM:
                     best_matched_frozen_nn_index = random.randrange(0, len(self.frozen_nets))
-                elif self.predict_method == PREDICT_METHOD_TASK_ID_KNOWN:
+                elif self.task_detector_type == PREDICT_METHOD_TASK_ID_KNOWN:
                     best_matched_frozen_nn_index = true_task_id
                     if best_matched_frozen_nn_index >= len(self.frozen_nets):
                         best_matched_frozen_nn_index = len(self.frozen_nets) - 1
-                elif self.predict_method == PREDICT_METHOD_NW_CONFIDENCE:
+                elif self.task_detector_type == PREDICT_METHOD_NW_CONFIDENCE:
                     best_matched_frozen_nn_index = self.get_network_with_best_confidence(x, x_flatten)
 
                 if best_matched_frozen_nn_index == true_task_id:
@@ -583,13 +620,14 @@ class MultiMLP(nn.Module):
                     best_matched_frozen_nn_index = len(self.frozen_nets) - 1
                 return self.frozen_nets[best_matched_frozen_nn_index].net(
                     x if self.frozen_nets[best_matched_frozen_nn_index].network_type == NETWORK_TYPE_CNN else x_flatten)
-            elif self.predict_method == PREDICT_METHOD_MAJORITY_VOTE:
+            elif self.task_detector_type == PREDICT_METHOD_MAJORITY_VOTE:
                 return self.get_majority_vote_from_frozen_nets(x, x_flatten, r)
 
         else:  # train
             self.samples_seen_for_train_after_drift += r
             self.total_samples_seen_for_train += r
 
+        use_instances_for_task_detector_training = True if random.randint(0, 0) == 0 else False
         t = []
         number_of_mlps_to_train = self.number_of_mlps_to_train
         number_of_top_mlps_to_train = self.number_of_mlps_to_train // 2
@@ -617,9 +655,9 @@ class MultiMLP(nn.Module):
                 c = c_flatten
 
             if self.use_threads:
-                t.append(threading.Thread(target=net_train, args=(self.train_nets[nn_index], xx, r, c, y, self.task_id,)))
+                t.append(threading.Thread(target=net_train, args=(self.train_nets[nn_index], xx, r, c, y, self.task_id, use_instances_for_task_detector_training,)))
             else:
-                self.train_nets[nn_index].train_net(xx, y, c, r, self.task_id)
+                self.train_nets[nn_index].train_net(xx, y, c, r, self.task_id, use_instances_for_task_detector_training)
         if self.use_threads:
             for i in range(len(t)):
                 t[i].start()
@@ -628,18 +666,16 @@ class MultiMLP(nn.Module):
 
         nn_with_lowest_loss = self.get_train_nn_index_with_lowest_loss()
 
+        if (self.train_task_predictor_at_the_end and
+                self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_ONE_CLASS) and use_instances_for_task_detector_training:
+            if self.accumulated_x[0] is None:
+                self.accumulated_x[0] = x.cpu()
+            else:
+                self.accumulated_x[0] = torch.cat([self.accumulated_x[0], x.cpu()], dim=0)
+
         self.train_nets[nn_with_lowest_loss].chosen_after_train += r
         return self.train_nets[nn_with_lowest_loss].net(
             x if self.train_nets[nn_with_lowest_loss].network_type == NETWORK_TYPE_CNN else x_flatten)
-
-    def reset(self):
-        # configuration variables (which has the same name as init parameters) should be copied by the caller function
-        for i in range(len(self.train_nets)):
-            self.train_nets[i] = None
-        self.train_nets = None
-        self.train_nets = []  # type: List[ANN]
-        self.create_nn_pool()
-        return self
 
     def print_stats(self, after_eval=False):
         self.heading_printed = False
