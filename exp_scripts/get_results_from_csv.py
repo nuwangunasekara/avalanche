@@ -14,9 +14,11 @@ if len(csv_files) == 0:
     for line in command.stdout.readlines():
         csv_files.append(line.decode("utf-8").replace('\n', ''))
 print(csv_files)
-print_headers = True
+
+print('dataset,strategy,sub_strategy,eval_accuracy,forgetting')
+df_final_results = pd.DataFrame(columns=['dataset', 'strategy', 'sub_strategy', 'eval_accuracy', 'forgetting'])
+
 for csv_file in csv_files:
-    # print(csv_file)
     df = pd.read_csv(csv_file)
     exp_info = csv_file.split('/')[-2]
     dataset = exp_info.split('_')[0]
@@ -28,13 +30,17 @@ for csv_file in csv_files:
     else:
         sub_strategy = 'NA'
     eval_after_training_last = df.query("eval_exp == 0 & training_exp == " + str(df['training_exp'].max()))
-    if print_headers:
-        print('dataset,strategy,sub_strategy,eval_accuracy,forgetting')
-        print_headers = False
+    eval_accuracy = eval_after_training_last.iloc[0, eval_after_training_last.columns.get_loc('eval_accuracy')]
+    forgetting = eval_after_training_last.iloc[0, eval_after_training_last.columns.get_loc('forgetting')]
+
+    new_row = {'dataset': dataset, 'strategy': strategy, 'sub_strategy': sub_strategy, 'eval_accuracy': sub_strategy, 'forgetting': forgetting}
+
+    df_final_results = df_final_results.append(new_row, ignore_index=True)
     print('{},{},{},{},{}'.format(
         dataset,
         strategy,
         sub_strategy,
-        eval_after_training_last.iloc[0, eval_after_training_last.columns.get_loc('eval_accuracy')],
-        eval_after_training_last.iloc[0, eval_after_training_last.columns.get_loc('forgetting')]))
+        eval_accuracy,
+        forgetting))
 
+df_final_results.to_csv(args.resultsDir+'/Final_results.csv', header=True, index=False)
