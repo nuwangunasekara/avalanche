@@ -10,9 +10,13 @@
 # E-mail: contact@continualai.org                                              #
 # Website: avalanche.continualai.org                                           #
 ################################################################################
+eval "$(conda shell.bash hook)"
+conda init bash
 
 python="3.8"
 cuda_version="none"
+conda_location=''
+yml_file='environment-dev.yml'
 help=false
 
 while test $# -gt 0; do
@@ -25,6 +29,16 @@ while test $# -gt 0; do
               --cuda_version)
                   shift
                   cuda_version=$1
+                  shift
+                  ;;
+              --conda_location)
+                  shift
+                  conda_location=$1
+                  shift
+                  ;;
+              --yml_file)
+                  shift
+                  yml_file=$1
                   shift
                   ;;
               --help)
@@ -54,6 +68,8 @@ if [ "$help" = true ] ; then
     exit 0
 fi
 
+echo "Conda prefix : $conda_location";
+echo "yml file : $yml_file";
 echo "python version : $python";
 echo "cuda version : $cuda_version";
 
@@ -67,8 +83,8 @@ if ! [[ "$cuda_version" =~ ^(9.2|10.1|10.2|11.0|11.1|"none")$ ]]; then
     exit 1
 fi
 
-conda create -n avalanche-dev-env python=$python -c conda-forge
-conda activate avalanche-dev-env
+conda create --prefix $conda_location python=$python -c conda-forge
+conda activate $conda_location
 if [[ "$cuda_version" = "none" ]]; then
     if [[ "$python_version" = 3.9 ]]; then
         conda install pytorch torchvision cpuonly -c pytorch -c=conda-forge
@@ -82,4 +98,4 @@ else
         conda install pytorch torchvision cudatoolkit=$cuda_version -c pytorch
     fi
 fi
-conda env update --file environment-dev.yml
+conda env update --file "$yml_file"
