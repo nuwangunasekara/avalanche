@@ -40,6 +40,8 @@ for csv_file in csv_files:
     if match:
         sub_strategy = match.group(0)
         correct_net = df_correct.query("training_exp == " + last_exp_id_str).loc[last_exp_id, 'correct_net_percentage']
+        print(df_frozen)
+        print(df_correct)
     else:
         sub_strategy = 'NA'
 
