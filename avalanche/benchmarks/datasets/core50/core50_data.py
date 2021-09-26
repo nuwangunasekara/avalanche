@@ -29,7 +29,10 @@ data = [
      '281c95774306a2196f4505f22fd60ab1'),
     ('labels2names.pkl',
      'https://vlomonaco.github.io/core50/data/labels2names.pkl',
-     '557d0b9f0ec32765ccea65624aa51b3b')
+     '557d0b9f0ec32765ccea65624aa51b3b'),
+    ('core50_class_names.txt',
+     'https://vlomonaco.github.io/core50/data/core50_class_names.txt',
+     None),
 ]
 
 extra_data = [

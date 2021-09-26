@@ -27,6 +27,7 @@ from avalanche.benchmarks.datasets.core50.core50 import CORe50Dataset
 
 nbatch = {
     'ni': 8,
+    'ni_di_task_id_by_session': 11,
     'nc': 9,
     'nic': 79,
     'nicv2_79': 79,
@@ -36,6 +37,7 @@ nbatch = {
 
 scen2dirs = {
     'ni': "batches_filelists/NI_inc/",
+    'ni_di_task_id_by_session': "batches_filelists/NI_DI/",
     'nc': "batches_filelists/NC_inc/",
     'nic': "batches_filelists/NIC_inc/",
     'nicv2_79': "NIC_v2_79/",
@@ -135,18 +137,31 @@ def CORe50(
         suffix = "/"
     else:
         suffix = "_cat/"
+    if scenario =='ni_di_task_id_by_session':
+        suffix = "_cat_task_id_by_session/"
+
     filelists_bp = scen2dirs[scenario][:-1] + suffix + "run" + str(run)
+
+    if scenario =='ni_di_task_id_by_session':
+        test_failists_paths = []
+    else:
+        test_failists_paths = [root / filelists_bp / "test_filelist.txt"]
+
     train_failists_paths = []
     for batch_id in range(nbatch[scenario]):
         train_failists_paths.append(
             root / filelists_bp / ("train_batch_" +
                                    str(batch_id).zfill(2) + "_filelist.txt"))
+        if scenario == 'ni_di_task_id_by_session':
+            test_failists_paths.append(
+                root / filelists_bp / ("test_batch_" +
+                                       str(batch_id).zfill(2) + "_filelist.txt"))
 
     benchmark_obj = create_generic_benchmark_from_filelists(
         root_img, train_failists_paths,
-        [root / filelists_bp / "test_filelist.txt"],
+        test_failists_paths,
         task_labels=[0 for _ in range(nbatch[scenario])],
-        complete_test_set_only=True,
+        complete_test_set_only=False if scenario == 'ni_di_task_id_by_session' else True,
         train_transform=train_transform,
         eval_transform=eval_transform)
 

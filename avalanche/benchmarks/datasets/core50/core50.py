@@ -14,6 +14,8 @@
 import glob
 import logging
 import os
+import shutil
+import pandas as pd
 import pickle as pkl
 from pathlib import Path
 from typing import Union
@@ -184,6 +186,9 @@ class CORe50Dataset(DownloadableDataset):
         if not (self.root / 'NIC_v2_79_cat').exists():
             self._create_cat_filelists()
 
+        if not (self.root / 'NI_DI_cat_task_id_by_session').exists():
+            self._generate_di_file_list()
+
         return True
 
     def _download_error_message(self) -> str:
@@ -238,6 +243,109 @@ class CORe50Dataset(DownloadableDataset):
                 self.labels2names['nc'][run][label][:-1]]
         else:
             return int(label) // 5
+
+    def _generate_di_file_list(self, task_id_by='session'):
+        class_names_txt = os.path.join(self.root, 'core50_class_names.txt')
+
+        number_of_sessions = 11
+        objects_per_classes_category = 5
+        frames_per_object = 300
+
+        sessions = []
+        runs = []
+        tasks = []
+        objects = {}
+        fd = []
+
+        if task_id_by == 'object':
+            max_runs = number_of_sessions
+            max_tasks = objects_per_classes_category
+        elif task_id_by == 'session':
+            max_runs = objects_per_classes_category
+            max_tasks = number_of_sessions
+        else:
+            return
+        file_list_dir = os.path.join(self.root, 'NI_DI_cat_task_id_by_' + task_id_by)
+
+        for r in range(max_runs):
+            runs.append(r)
+
+        for t in range(max_tasks):
+            tasks.append(t)
+
+        for s in range(1, number_of_sessions + 1):
+            sessions.append(s)
+
+        objects_df = pd.read_csv(class_names_txt, header=None, index_col=False)
+
+        for o in objects_df.index:
+            print(o + 1, objects_df.iloc[o, 0])
+            q, mod = divmod(o, objects_per_classes_category)
+            objects.update({str(o + 1).zfill(2): {
+                'class_id': q,
+                'sub_class_idx': mod}})
+
+        print(objects)
+        print('Sessions:', sessions)
+        print('Task_id by: ', task_id_by)
+        print('Runs:', runs)
+        print('Tasks:', tasks)
+
+        paths = self.train_test_paths
+
+        if os.path.isdir(file_list_dir):
+            shutil.rmtree(file_list_dir)
+        os.mkdir(file_list_dir)
+
+        # create directory structure in file_list_dir and open files
+        for r in runs:
+            run_dir_path = os.path.join(file_list_dir, 'run' + str(r))
+            if os.path.isdir(run_dir_path):
+                shutil.rmtree(run_dir_path)
+            os.mkdir(run_dir_path)
+            fd.append([])
+            for t in tasks:
+                post_fix = '_batch_' + str(t).zfill(2) + '_filelist.txt'
+                train_f_path = os.path.join(run_dir_path, 'train' + post_fix)
+                test_f_path = os.path.join(run_dir_path, 'test' + post_fix)
+
+                fd_train = open(train_f_path, 'w')
+                fd_test = open(test_f_path, 'w')
+
+                fd[r].append({'train': fd_train, 'test': fd_test})
+
+        # write file list
+        for p in range(len(paths)):
+            f_p = paths[p]
+            image_parts = f_p.split('.')[0].split('/')[2].split('_')  # s11/o1/C_11_01_000.png
+            image_session = image_parts[1]
+            image_object = image_parts[2]
+            image_idx = image_parts[3]
+
+            q, mod = divmod(int(image_idx), frames_per_object)
+            if mod < 200:
+                test_or_train = 'train'
+            else:
+                test_or_train = 'test'
+
+            if task_id_by == 'object':
+                run = int(image_session) - 1
+                task_id = objects[image_object]['sub_class_idx']
+            elif task_id_by == 'session':
+                run = objects[image_object]['sub_class_idx']
+                task_id = int(image_session) - 1
+            else:
+                pass
+
+            class_id = objects[image_object]['class_id']
+
+            tmp_fd = fd[run][task_id][test_or_train]
+            tmp_fd.write('{} {}\n'.format(f_p, class_id))
+
+        for r in runs:
+            for t in tasks:
+                fd[r][t]['train'].close()
+                fd[r][t]['test'].close()
 
 
 def CORe50(*args, **kwargs):
