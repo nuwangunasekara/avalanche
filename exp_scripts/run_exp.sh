@@ -11,7 +11,7 @@ clean_dir="FALSE"
 dataset=(LED_a RotatedMNIST RotatedCIFAR10 CORe50)
 dataset=(RotatedMNIST RotatedCIFAR10 CORe50)
 #dataset=(CORe50)
-strategy=(LwF EWC GDumb TrainPool)
+strategy=(LwF EWC GDumb ER TrainPool)
 
 mini_batch_size='10'
 
@@ -79,6 +79,10 @@ do
           log_file_name="${log_file_name}_${model}"
           ;;
         GDumb)
+          command_args="${command_args} --module ${model} --optimizer ${optimizer} --lr ${l_rate} --hs 1024 --mem_buff_size 1000"
+          log_file_name="${log_file_name}_${model}_b1000"
+          ;;
+        ER)
           command_args="${command_args} --module ${model} --optimizer ${optimizer} --lr ${l_rate} --hs 1024 --mem_buff_size 1000"
           log_file_name="${log_file_name}_${model}_b1000"
           ;;

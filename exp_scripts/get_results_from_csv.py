@@ -112,9 +112,12 @@ datasets = df_all["dataset"].unique()
 experiences = df_all['eval_exp'].unique()
 strategies = df_all["strategy"].unique()
 sub_strategies = df_all["sub_strategy"].unique()
-line = ['dotted', 'dashed', 'dashdot', 'solid']
+
 line = ['solid', 'dashdot', 'dashed', 'dotted']
-colors = {'EWC': 'black', 'GDumb': 'dimgrey', 'LwF': 'darkgrey',
+colors = {'EWC': 'black',
+          'LwF': 'darkgrey',
+          'ER': 'indigo',
+          'GDumb': 'blueviolet',
           'MAJORITY_VOTE': 'darkorange',
           'NAIVE_BAYES': 'greenyellow', 'NAIVE_BAYES_end': 'forestgreen',
           'ONE_CLASS': 'dodgerblue', 'ONE_CLASS_end': 'blue',
@@ -136,7 +139,8 @@ for d in datasets:
         axes.append(ax)
         for s in strategies:
             for sub_s in sub_strategies:
-                if (s == 'TrainPool' and sub_s == 'NA') or ((s == 'EWC' or s == 'LwF' or s == 'GDumb') and sub_s != 'NA'):
+                if (s == 'TrainPool' and sub_s == 'NA') or ((s == 'EWC' or s == 'LwF' or s == 'GDumb' or s == 'ER') and sub_s != 'NA'):
+                    # we have already plot above s, skipp NA for TrainPool and !NA for others
                     continue
 
                 p_df = df_all.query(
@@ -158,6 +162,6 @@ for d in datasets:
                 ax.plot(exps, p_df_avg_eval_acc_for_exp, label=label, color=color, linestyle=line_type, marker="o")
         col += 1
     rows += 1
-axes[-len(experiences)].legend(ncol=5, bbox_to_anchor=(0.0, -0.1), loc="upper left")
+axes[-len(experiences)].legend(ncol=6, bbox_to_anchor=(0.0, -0.1), loc="upper left")
 mplcursors.cursor(hover=True)
 plt.show()

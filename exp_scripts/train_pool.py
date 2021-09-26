@@ -215,6 +215,11 @@ def main(args):
                          mem_size=args.mem_buff_size,
                          train_epochs=args.epochs, device=device, train_mb_size=args.minibatch_size,
                          evaluator=eval_plugin)
+    elif args.strategy == 'ER':
+        strategy = Replay(model, optimizer, criterion,
+                          mem_size=args.mem_buff_size,
+                          train_epochs=args.epochs, device=device, train_mb_size=args.minibatch_size,
+                          evaluator=eval_plugin)
 
     # for j in range(len(scenario.train_stream)):
     #     print('Task: {} size: {}'.format(j, len(scenario.train_stream[j].dataset)))
@@ -256,7 +261,7 @@ if __name__ == '__main__':
     parser.add_argument('--minibatch_size', type=int, default=100,
                         help='Minibatch size.')
     parser.add_argument('--mem_buff_size', type=int, default=1000,
-                        help='Memory buffer size for replay methods(GDumb)')
+                        help='Memory buffer size for replay methods(GDumb,ER)')
     parser.add_argument('--cuda', type=int, default=0,
                         help='Specify GPU id to use. Use CPU if -1.')
     parser.add_argument('--dataset', type=str, default='RotatedMNIST',
@@ -282,8 +287,10 @@ if __name__ == '__main__':
                         help='back_prop_skip_loss_threshold for MultiMLP')
     parser.add_argument('--log_file_name', type=str, default='',
                         help='Log file name')
-    parser.add_argument('--train_task_predictor_at_the_end', dest='train_task_predictor_at_the_end', action='store_true')
-    parser.add_argument('--no-train_task_predictor_at_the_end', dest='train_task_predictor_at_the_end', action='store_false')
+    parser.add_argument('--train_task_predictor_at_the_end', dest='train_task_predictor_at_the_end',
+                        action='store_true')
+    parser.add_argument('--no-train_task_predictor_at_the_end', dest='train_task_predictor_at_the_end',
+                        action='store_false')
     parser.set_defaults(train_task_predictor_at_the_end=False)
 
     args = parser.parse_args()
