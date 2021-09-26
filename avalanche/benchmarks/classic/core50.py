@@ -37,7 +37,7 @@ nbatch = {
 
 scen2dirs = {
     'ni': "batches_filelists/NI_inc/",
-    'ni_di_task_id_by_session': "batches_filelists/NI_DI/",
+    'ni_di_task_id_by_session': "NI_DI/",
     'nc': "batches_filelists/NC_inc/",
     'nic': "batches_filelists/NIC_inc/",
     'nicv2_79': "NIC_v2_79/",
