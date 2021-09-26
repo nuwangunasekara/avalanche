@@ -1,3 +1,4 @@
+import mplcursors
 import pandas as pd
 import numpy as np
 import re
@@ -68,9 +69,9 @@ print(df_final_results)
 
 df_final_results.to_csv(args.resultsDir+'/Final_results.csv', header=True, index=False)
 
-pd_forgetting = pd.pivot_table(
+pd_forgetting_0 = pd.pivot_table(
     df_final_results, values='forgetting', index=['dataset'], columns=['strategy', 'sub_strategy'], aggfunc=np.mean, fill_value=0)
-pd_eval_accuracy = pd.pivot_table(
+pd_eval_accuracy_0 = pd.pivot_table(
     df_final_results, values='eval_accuracy', index=['dataset'], columns=['strategy', 'sub_strategy'], aggfunc=np.mean, fill_value=0)
 pd_avg_forgetting = pd.pivot_table(
     df_final_results, values='avg_eval_forgetting_after_last', index=['dataset'], columns=['strategy', 'sub_strategy'], aggfunc=np.mean, fill_value=0)
@@ -79,9 +80,9 @@ pd_avg_eval_accuracy = pd.pivot_table(
 pd_correct_net = pd.pivot_table(
     df_final_results, values='correct_net_percentage', index=['dataset'], columns=['strategy', 'sub_strategy'], aggfunc=np.mean, fill_value=0)
 
-pd_forgetting_std = pd.pivot_table(
+pd_forgetting_0_std = pd.pivot_table(
     df_final_results, values='forgetting', index=['dataset'], columns=['strategy', 'sub_strategy'], aggfunc=np.std, fill_value=0)
-pd_eval_accuracy_std = pd.pivot_table(
+pd_eval_accuracy_0_std = pd.pivot_table(
     df_final_results, values='eval_accuracy', index=['dataset'], columns=['strategy', 'sub_strategy'], aggfunc=np.std, fill_value=0)
 pd_avg_forgetting_std = pd.pivot_table(
     df_final_results, values='avg_eval_forgetting_after_last', index=['dataset'], columns=['strategy', 'sub_strategy'], aggfunc=np.std, fill_value=0)
@@ -93,10 +94,10 @@ pd_correct_net_std = pd.pivot_table(
 with pd.ExcelWriter(args.resultsDir+'/Final_results.xlsx') as writer:
     df_final_results.to_excel(writer, sheet_name='RawResults', index=True)
 
-    pd_eval_accuracy.to_excel(writer, sheet_name='AccAfterLast', index=True)
-    pd_eval_accuracy_std.to_excel(writer, sheet_name='AccAfterLastS', index=True)
-    pd_forgetting.to_excel(writer, sheet_name='Forgetting', index=True)
-    pd_forgetting_std.to_excel(writer, sheet_name='ForgettingS', index=True)
+    pd_eval_accuracy_0.to_excel(writer, sheet_name='AccAfterLast_0', index=True)
+    pd_eval_accuracy_0_std.to_excel(writer, sheet_name='AccAfterLast_0S', index=True)
+    pd_forgetting_0.to_excel(writer, sheet_name='Forgetting_0', index=True)
+    pd_forgetting_0_std.to_excel(writer, sheet_name='Forgetting_0S', index=True)
 
     pd_avg_eval_accuracy.to_excel(writer, sheet_name='AvgAccAfterLast', index=True)
     pd_avg_eval_accuracy_std.to_excel(writer, sheet_name='AvgAccAfterLastS', index=True)
@@ -123,11 +124,15 @@ colors = {'EWC': 'black', 'GDumb': 'dimgrey', 'LwF': 'darkgrey',
 gs = fig.add_gridspec(len(datasets), len(experiences))
 rows = 0
 axes = []
+last_d = None
 for d in datasets:
     col = 0
     for e in experiences:
         ax = fig.add_subplot(gs[rows, col], label=d)
-        ax.set_title(d)
+        ax.set_title(str(int(e)))
+        if last_d != d:
+            ax.set_ylabel(d)
+        last_d = d
         axes.append(ax)
         for s in strategies:
             for sub_s in sub_strategies:
@@ -153,5 +158,6 @@ for d in datasets:
                 ax.plot(exps, p_df_avg_eval_acc_for_exp, label=label, color=color, linestyle=line_type, marker="o")
         col += 1
     rows += 1
-axes[-4].legend(ncol=5, bbox_to_anchor=(0.0, -0.1), loc="upper left")
+axes[-len(experiences)].legend(ncol=5, bbox_to_anchor=(0.0, -0.1), loc="upper left")
+mplcursors.cursor(hover=True)
 plt.show()
