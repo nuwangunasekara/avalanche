@@ -39,7 +39,7 @@ for csv_file in csv_files:
     strategy = exp_info.split('_')[1]
     sub_strategy = exp_info.split('_')[-1]
     match = re.search('ONE_CLASS.*|MAJORITY_VOTE|RANDOM|NAIVE_BAYES.*|TASK_ID_KNOWN', exp_info)
-    correct_net = 0
+    correct_net = 0.0
     if match:
         sub_strategy = match.group(0)
         correct_net = df_correct.query("training_exp == " + last_exp_id_str).loc[last_exp_id, 'correct_net_percentage']
