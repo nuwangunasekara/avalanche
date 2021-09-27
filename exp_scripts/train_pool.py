@@ -3,7 +3,7 @@ from avalanche.benchmarks.classic.ccifar10 import RotatedCIFAR10_di
 
 from avalanche.training.strategies import *
 from avalanche.models import *
-from avalanche.models.MultiMLP import SimpleCNN
+from avalanche.models.MultiMLP import SimpleCNN, CNN4
 from avalanche.models.MultiMLP import PREDICT_METHOD_ONE_CLASS, PREDICT_METHOD_MAJORITY_VOTE, PREDICT_METHOD_RANDOM, \
     PREDICT_METHOD_TASK_ID_KNOWN, PREDICT_METHOD_NW_CONFIDENCE, PREDICT_METHOD_NAIVE_BAYES
 from avalanche.evaluation.metrics import *
@@ -131,9 +131,11 @@ def main(args):
     # print('hi')
     # exit(0)
 
-    if args.module == 'SimpleMLP' or args.module == 'SimpleCNN':
+    if args.module == 'SimpleMLP' or args.module == 'SimpleCNN' or args.module == 'CNN4':
         if args.module == 'SimpleMLP':
             model = SimpleMLP(hidden_size=args.hs, num_classes=scenario.n_classes, input_size=input_size)
+        if args.module == 'CNN4':
+            model = CNN4(num_classes=10, num_channels=num_channels)
         else:
             model = SimpleCNN(num_classes=10, num_channels=num_channels)
         if args.optimizer == 'SGD':

@@ -12,7 +12,7 @@ dataset=(LED_a RotatedMNIST RotatedCIFAR10 CORe50)
 dataset=(RotatedMNIST RotatedCIFAR10 CORe50)
 #dataset=(CORe50)
 strategy=(LwF EWC GDumb ER TrainPool)
-strategy=(ER)
+strategy=(LwF EWC GDumb ER)
 
 mini_batch_size='10'
 
@@ -21,6 +21,7 @@ tp_number_of_nns_to_train='6'
 tp_predict_methods_array=('ONE_CLASS' 'ONE_CLASS_end' 'MAJORITY_VOTE' 'RANDOM' 'NAIVE_BAYES' 'NAIVE_BAYES_end' 'TASK_ID_KNOWN')
 
 model='SimpleCNN'
+model='CNN4'
 optimizer='Adam'
 l_rate='0.0005'
 

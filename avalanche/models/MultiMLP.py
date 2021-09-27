@@ -47,6 +47,7 @@ PREDICT_METHOD_TASK_ID_KNOWN = 3
 PREDICT_METHOD_NW_CONFIDENCE = 4
 PREDICT_METHOD_NAIVE_BAYES = 5
 
+
 class SimpleCNN(nn.Module):
 
     def __init__(self, num_classes=10, num_channels=0):
@@ -65,6 +66,53 @@ class SimpleCNN(nn.Module):
 
             # nn.Conv2d(64, 64, kernel_size=3, padding=0),
             # nn.ReLU(inplace=True),
+            # nn.MaxPool2d(kernel_size=2, stride=2),
+            # nn.Dropout(p=0.25),
+
+            nn.Conv2d(64, 64, kernel_size=1, padding=0),
+            nn.ReLU(inplace=True),
+            nn.AdaptiveMaxPool2d(1),
+            # nn.Dropout(p=0.25)
+        )
+        self.classifier = nn.Sequential(
+            nn.Linear(64, num_classes)
+        )
+
+    def forward(self, x, learned_features=None):
+        x = self.features(x)
+        x = x.view(x.size(0), -1)
+
+        if learned_features:
+            # pass learned features from last layer
+            if learned_features[0] is None:
+                learned_features[0] = x.detach()
+
+        x = self.classifier(x)
+        return x
+
+
+class CNN4(nn.Module):
+    def __init__(self, num_classes=10, num_channels=0):
+        super(CNN4, self).__init__()
+
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv1d(num_channels + 1, 32, kernel_size=3, stride=1, padding=1) if num_channels == 0 else nn.Conv2d(
+                num_channels, 32, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(32, 32, kernel_size=3, padding=0),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            # nn.Dropout(p=0.25),
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(64, 64, kernel_size=3, padding=0),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 64, kernel_size=3, padding=0),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 64, kernel_size=3, padding=0),
+            nn.ReLU(inplace=True),
             # nn.MaxPool2d(kernel_size=2, stride=2),
             # nn.Dropout(p=0.25),
 
