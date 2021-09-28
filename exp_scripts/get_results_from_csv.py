@@ -38,13 +38,14 @@ for csv_file in csv_files:
     dataset = exp_info.split('_')[0]
     strategy = exp_info.split('_')[1]
     sub_strategy = exp_info.split('_')[-1]
-    match = re.search('ONE_CLASS.*|MAJORITY_VOTE|RANDOM|NAIVE_BAYES.*|TASK_ID_KNOWN', exp_info)
+    match = re.search('ONE_CLASS.*|MAJORITY_VOTE|RANDOM|NAIVE_BAYES.*|TASK_ID_KNOWN|SimpleCNN|CNN4', exp_info)
     correct_net = 0.0
     if match:
         sub_strategy = match.group(0)
-        correct_net = df_correct.query("training_exp == " + last_exp_id_str).loc[last_exp_id, 'correct_net_percentage']
-        print(df_frozen)
-        print(df_correct)
+        if not (sub_strategy == 'SimpleCNN' or sub_strategy == 'CNN4'):
+            correct_net = df_correct.query("training_exp == " + last_exp_id_str).loc[last_exp_id, 'correct_net_percentage']
+            print(df_frozen)
+            print(df_correct)
     else:
         sub_strategy = 'NA'
 
@@ -116,11 +117,13 @@ sub_strategies = df_all["sub_strategy"].unique()
 line = ['solid', 'dashdot', 'dashed', 'dotted']
 colors = {'EWC': 'black',
           'LwF': 'darkgrey',
-          'ER': 'indigo',
-          'GDumb': 'blueviolet',
+          'ER': 'darkviolet',
+          'GDumb': 'violet',
           'MAJORITY_VOTE': 'darkorange',
-          'NAIVE_BAYES': 'greenyellow', 'NAIVE_BAYES_end': 'forestgreen',
-          'ONE_CLASS': 'dodgerblue', 'ONE_CLASS_end': 'blue',
+          'NAIVE_BAYES': 'greenyellow',
+          'NAIVE_BAYES_end': 'forestgreen',
+          'ONE_CLASS': 'dodgerblue',
+          'ONE_CLASS_end': 'blue',
           'RANDOM': 'gold',
           'TASK_ID_KNOWN': 'red'}
 
@@ -139,19 +142,26 @@ for d in datasets:
         axes.append(ax)
         for s in strategies:
             for sub_s in sub_strategies:
-                if (s == 'TrainPool' and sub_s == 'NA') or ((s == 'EWC' or s == 'LwF' or s == 'GDumb' or s == 'ER') and sub_s != 'NA'):
-                    # we have already plot above s, skipp NA for TrainPool and !NA for others
+                # ONE_CLASS. * | MAJORITY_VOTE | RANDOM | NAIVE_BAYES. * | TASK_ID_KNOWN | SimpleCNN | CNN4
+                if (s == 'TrainPool' and (sub_s == 'SimpleCNN' or sub_s == 'CNN4')) or \
+                        (s != 'TrainPool' and not (sub_s == 'SimpleCNN' or sub_s == 'CNN4')):
+                    # we have already plot above s, skipp "SimpleCNN | CNN4" for TrainPool, and "ONE_CLASS. * | MAJORITY_VOTE | RANDOM | NAIVE_BAYES. * | TASK_ID_KNOWN" for others
                     continue
 
                 p_df = df_all.query(
                     'dataset .str.contains("' + d + '") and strategy.str.contains("' + s + '") and sub_strategy.str.contains("' + sub_s +'") and eval_exp == ' + str(e), engine='python')
                 # label = s + "_" + sub_s + "_" + str(e)
-                label = s
-                if s == 'TrainPool':
-                    label += sub_s
-                color = colors[sub_s] if s == 'TrainPool' else colors[s]
-                # line_type = line[ll]
+                label = s + sub_s
+
                 line_type = line[0]
+                if s == 'TrainPool':
+                    pass
+                else:
+                    if sub_s == 'SimpleCNN':
+                        line_type = line[1]
+
+                color = colors[sub_s] if s == 'TrainPool' else colors[s]
+
                 exps = p_df['training_exp'].unique()
                 p_df_avg_eval_acc_for_exp = p_df.groupby(['training_exp'])['eval_accuracy'].mean()
 
@@ -159,9 +169,10 @@ for d in datasets:
                 print(exps)
                 print(p_df_avg_eval_acc_for_exp)
 
-                ax.plot(exps, p_df_avg_eval_acc_for_exp, label=label, color=color, linestyle=line_type, marker="o")
+                ax.plot(exps, p_df_avg_eval_acc_for_exp, label=label, color=color, linestyle=line_type, marker=".")
         col += 1
     rows += 1
 axes[-len(experiences)].legend(ncol=6, bbox_to_anchor=(0.0, -0.1), loc="upper left")
-mplcursors.cursor(hover=True)
+# mplcursors.cursor(hover=True)
+plt.savefig(args.resultsDir+'/Plot.png')
 plt.show()
