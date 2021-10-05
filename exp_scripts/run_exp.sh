@@ -9,10 +9,10 @@ clean_dir="TRUE"
 clean_dir="FALSE"
 
 dataset=(LED_a RotatedMNIST RotatedCIFAR10 CORe50)
-dataset=(RotatedMNIST RotatedCIFAR10 CORe50)
+dataset=(CORe50 RotatedMNIST RotatedCIFAR10 CORe50)
 #dataset=(CORe50)
 strategy=(LwF EWC GDumb ER TrainPool)
-strategy=(LwF EWC GDumb ER)
+strategy=(TrainPool LwF EWC GDumb ER)
 
 mini_batch_size='10'
 
