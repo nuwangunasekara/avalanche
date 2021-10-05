@@ -676,7 +676,7 @@ class MultiMLP(nn.Module):
             elif self.task_detector_type == PREDICT_METHOD_MAJORITY_VOTE:
                 class_votes = self.get_majority_vote_from_frozen_nets(x, x_flatten, r)
 
-            correct_class_predicted = (np.argmax(class_votes, axis=1) == y).sum().item()
+            correct_class_predicted = torch.eq(torch.argmax(class_votes, dim=1), y).sum().item()
             self.correct_class_predicted += correct_class_predicted
             self.frozen_nets[best_matched_frozen_nn_index].correct_class_predicted += correct_class_predicted
 
