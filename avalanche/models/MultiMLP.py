@@ -735,7 +735,9 @@ class MultiMLP(nn.Module):
         #         and self.total_samples_seen_for_train % (
         # self.stats_print_frequency if self.stats_print_frequency != 0 else self.total_samples_seen_for_train) == 0:
         if not self.heading_printed:
-            print('total_samples_seen_for_train,'
+            print('training_exp',
+                  'list_type',
+                  'total_samples_seen_for_train,'
                   'samples_seen_for_train_after_drift,'
                   'name,'
                   'this_id,'
@@ -750,16 +752,18 @@ class MultiMLP(nn.Module):
                   file=self.stats_file)
             self.heading_printed = True
 
-            print('---train_nets---', file=self.stats_file)
-            self.print_nn_list(self.train_nets)
-            print('---frozen_nets---', file=self.stats_file)
-            self.print_nn_list(self.frozen_nets)
+            # print('---train_nets---', file=self.stats_file)
+            self.print_nn_list(self.train_nets, list_type='train_net')
+            # print('---frozen_nets---', file=self.stats_file)
+            self.print_nn_list(self.frozen_nets, list_type='frozen_net')
             if after_eval:
                 print('correct_network_selected(%)=', self.correct_network_selected_count / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0)
 
-    def print_nn_list(self, l):
+    def print_nn_list(self, l, list_type=None):
         for i in range(len(l)):
-            print('{},{},{},{},{},{},{},{},{},{},{},{}'.format(
+            print('{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(
+                self.task_id - 1,
+                list_type,
                 self.total_samples_seen_for_train,
                 self.samples_seen_for_train_after_drift,
                 l[i].model_name,

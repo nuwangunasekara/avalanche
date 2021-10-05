@@ -116,7 +116,7 @@ def main(args):
             n_classes=10,
             minibatch_size=args.minibatch_size, drift_width=250000)
     elif args.dataset == 'CORe50':
-        scenario = CORe50(scenario='ni_di_task_id_by_session', run=0, object_lvl=False, mini=True)
+        scenario = CORe50(scenario='ni_di_task_id_by_session', run=0, object_lvl=False, mini=False)
         input_size = 3 * 32 * 32
         num_channels = 3
         scenario.n_classes = 10
@@ -167,7 +167,8 @@ def main(args):
             nn_pool_type=args.pool_type,
             back_prop_skip_loss_threshold=args.skip_back_prop_threshold,
             device=device,
-            train_task_predictor_at_the_end=args.train_task_predictor_at_the_end)
+            train_task_predictor_at_the_end=args.train_task_predictor_at_the_end,
+            stats_file=args.base_dir + '/logs/exp_logs/' + args.log_file_name + '_Nets.csv')
         optimizer = None
 
     criterion = torch.nn.CrossEntropyLoss()
