@@ -235,6 +235,8 @@ class ANN:
         self.learned_features_x = [None]
         self.one_class_detector = None
         self.naive_bayes = None
+        self.correct_network_selected_count = 0
+        self.correct_class_predicted = 0
         self.init_values()
 
     def init_values(self):
@@ -252,6 +254,8 @@ class ANN:
         self.learned_features_x = [None]
         self.one_class_detector = OneClassSVM(gamma='auto')
         self.naive_bayes = NaiveBayes()
+        self.correct_network_selected_count = 0
+        self.correct_class_predicted = 0
 
         if self.hidden_layers_for_MLP is None:
             pass
@@ -435,6 +439,7 @@ class MultiMLP(nn.Module):
         self.samples_seen_for_test = 0
         self.test_samples_seen_for_learned_tasks = 0
         self.correct_network_selected_count = 0
+        self.correct_class_predicted = 0
         self.call_predict = False
         self.mb_yy = None
         self.mb_task_id = None
@@ -634,13 +639,12 @@ class MultiMLP(nn.Module):
         c_flatten, x_flatten = flatten_dimensions(x)
         y = self.mb_yy
 
-
         if self.call_predict:
             self.samples_seen_for_test += r
             true_task_id = self.mb_task_id.sum(dim=0).item() // self.mb_task_id.shape[0]
             if true_task_id < len(self.frozen_nets):
                 self.test_samples_seen_for_learned_tasks += r
-
+            class_votes = []
             if self.task_detector_type == PREDICT_METHOD_ONE_CLASS \
                     or self.task_detector_type == PREDICT_METHOD_RANDOM \
                     or self.task_detector_type == PREDICT_METHOD_TASK_ID_KNOWN \
@@ -661,15 +665,22 @@ class MultiMLP(nn.Module):
 
                 if best_matched_frozen_nn_index == true_task_id:
                     self.correct_network_selected_count += r
+                    self.frozen_nets[best_matched_frozen_nn_index].correct_network_selected_count += r
                 try:
                     self.frozen_nets[best_matched_frozen_nn_index].chosen_for_test += r
                 except IndexError:
                     print('Index error reached best_matched_frozen_nn_index {}'.format(best_matched_frozen_nn_index))
                     best_matched_frozen_nn_index = len(self.frozen_nets) - 1
-                return self.frozen_nets[best_matched_frozen_nn_index].net(
+                class_votes = self.frozen_nets[best_matched_frozen_nn_index].net(
                     x if self.frozen_nets[best_matched_frozen_nn_index].network_type == NETWORK_TYPE_CNN else x_flatten)
             elif self.task_detector_type == PREDICT_METHOD_MAJORITY_VOTE:
-                return self.get_majority_vote_from_frozen_nets(x, x_flatten, r)
+                class_votes = self.get_majority_vote_from_frozen_nets(x, x_flatten, r)
+
+            correct_class_predicted = (np.argmax(class_votes, axis=1) == y).sum().item()
+            self.correct_class_predicted += correct_class_predicted
+            self.frozen_nets[best_matched_frozen_nn_index].correct_class_predicted += correct_class_predicted
+
+            return class_votes
 
         else:  # train
             self.samples_seen_for_train_after_drift += r
@@ -726,42 +737,36 @@ class MultiMLP(nn.Module):
             x if self.train_nets[nn_with_lowest_loss].network_type == NETWORK_TYPE_CNN else x_flatten)
 
     def print_stats(self, after_eval=False):
-        self.heading_printed = False
-        print('\nNetwork statistics:\n'
-              '=======================================\n')
-        self.heading_printed = False
-        # if self.total_samples_seen_for_train > 0 \
-        #         and (self.stats_print_frequency != 0 or stream_ended) \
-        #         and self.total_samples_seen_for_train % (
-        # self.stats_print_frequency if self.stats_print_frequency != 0 else self.total_samples_seen_for_train) == 0:
         if not self.heading_printed:
-            print('training_exp',
-                  'list_type',
+            print('training_exp,'
+                  'list_type,'
                   'total_samples_seen_for_train,'
                   'samples_seen_for_train_after_drift,'
-                  'name,'
+                  'this_name,'
                   'this_id,'
-                  'samples_seen_at_train_by_this,'
-                  'trained_count,'
-                  'avg_loss,'
-                  'estimated_loss,'
-                  'chosen_after_train,',
-                  'total_samples_seen_for_test,',
-                  'test_samples_seen_for_learned_tasks,',
-                  'chosen_for_test',
-                  file=self.stats_file)
+                  'this_samples_seen_at_train,'
+                  'this_trained_count,'
+                  'this_avg_loss,'
+                  'this_estimated_loss,'
+                  'this_chosen_after_train,'
+                  'total_samples_seen_for_test,'
+                  'test_samples_seen_for_learned_tasks,'
+                  'this_chosen_for_test,'
+                  'this_correct_network_selected,'
+                  'correct_network_selected,'
+                  'this_acc,'
+                  'acc',
+                  file=self.stats_file, flush=True)
             self.heading_printed = True
 
-            # print('---train_nets---', file=self.stats_file)
-            self.print_nn_list(self.train_nets, list_type='train_net')
-            # print('---frozen_nets---', file=self.stats_file)
-            self.print_nn_list(self.frozen_nets, list_type='frozen_net')
-            if after_eval:
-                print('correct_network_selected(%)=', self.correct_network_selected_count / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0)
+        # print('---train_nets---', file=self.stats_file)
+        self.print_nn_list(self.train_nets, list_type='train_net')
+        # print('---frozen_nets---', file=self.stats_file)
+        self.print_nn_list(self.frozen_nets, list_type='frozen_net')
 
     def print_nn_list(self, l, list_type=None):
         for i in range(len(l)):
-            print('{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(
+            print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(
                 self.task_id - 1,
                 list_type,
                 self.total_samples_seen_for_train,
@@ -775,4 +780,9 @@ class MultiMLP(nn.Module):
                 l[i].chosen_after_train,
                 self.samples_seen_for_test,
                 self.test_samples_seen_for_learned_tasks,
-                l[i].chosen_for_test), file=self.stats_file)
+                l[i].chosen_for_test,
+                l[i].correct_network_selected_count / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0,
+                self.correct_network_selected_count / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0,
+                l[i].correct_class_predicted / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0,
+                self.correct_class_predicted / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0
+            ), file=self.stats_file, flush=True)
