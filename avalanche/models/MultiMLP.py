@@ -678,7 +678,8 @@ class MultiMLP(nn.Module):
 
             correct_class_predicted = torch.eq(torch.argmax(class_votes, dim=1), y).sum().item()
             self.correct_class_predicted += correct_class_predicted
-            self.frozen_nets[best_matched_frozen_nn_index].correct_class_predicted += correct_class_predicted
+            if self.task_detector_type != PREDICT_METHOD_MAJORITY_VOTE:
+                self.frozen_nets[best_matched_frozen_nn_index].correct_class_predicted += correct_class_predicted
 
             return class_votes
 
