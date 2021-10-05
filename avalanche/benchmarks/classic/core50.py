@@ -157,10 +157,15 @@ def CORe50(
                 root / filelists_bp / ("test_batch_" +
                                        str(batch_id).zfill(2) + "_filelist.txt"))
 
+    if scenario == 'ni_di_task_id_by_session':
+        task_labels = [i for i in range(nbatch[scenario])]
+    else:
+        task_labels = [0 for _ in range(nbatch[scenario])]
+
     benchmark_obj = create_generic_benchmark_from_filelists(
         root_img, train_failists_paths,
         test_failists_paths,
-        task_labels=[0 for _ in range(nbatch[scenario])],
+        task_labels=task_labels,
         complete_test_set_only=False if scenario == 'ni_di_task_id_by_session' else True,
         train_transform=train_transform,
         eval_transform=eval_transform)
