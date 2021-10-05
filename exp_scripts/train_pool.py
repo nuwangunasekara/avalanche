@@ -116,7 +116,7 @@ def main(args):
             n_classes=10,
             minibatch_size=args.minibatch_size, drift_width=250000)
     elif args.dataset == 'CORe50':
-        scenario = CORe50(scenario='ni_di_task_id_by_session', run=0, object_lvl=False, mini=False)
+        scenario = CORe50(scenario='ni_di_task_id_by_session', run=0, object_lvl=False, mini=True)
         input_size = 3 * 32 * 32
         num_channels = 3
         scenario.n_classes = 10
