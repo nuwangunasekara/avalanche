@@ -5,7 +5,7 @@ import subprocess
 
 base_dir = '/Users/ng98/Desktop/avalanche_test/'
 core50_dir = '/Users/ng98/.avalanche/data/core50/'
-image_dir = core50_dir + 'core50_32x32'
+image_dir = core50_dir + 'core50_128x128'
 
 head = '<!DOCTYPE html><html><head><title>CoRe50</title></head><body>'
 tail ='</body></html>'
