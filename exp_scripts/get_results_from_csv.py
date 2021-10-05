@@ -135,10 +135,15 @@ for d in datasets:
     col = 0
     for e in experiences:
         ax = fig.add_subplot(gs[rows, col], label=d)
-        ax.set_title(str(int(e)))
+        if d == datasets[0]:
+            ax.set_title('after training\n on ' + str(int(e)))
+        if d == datasets[len(datasets)-1]:
+            ax.set_xlabel('eval task id')
         if last_d != d:
-            ax.set_ylabel(d)
+            ax.set_ylabel(d + 'acc')
         last_d = d
+        ax.set_xticks(
+            np.arange(len(df_all.query('dataset .str.contains("' + d + '")', engine='python')['eval_exp'].unique())))
         axes.append(ax)
         for s in strategies:
             for sub_s in sub_strategies:
@@ -149,7 +154,7 @@ for d in datasets:
                     continue
 
                 p_df = df_all.query(
-                    'dataset .str.contains("' + d + '") and strategy.str.contains("' + s + '") and sub_strategy.str.contains("' + sub_s +'") and eval_exp == ' + str(e), engine='python')
+                    'dataset .str.contains("' + d + '") and strategy.str.contains("' + s + '") and sub_strategy.str.contains("' + sub_s +'") and training_exp == ' + str(e), engine='python')
                 # label = s + "_" + sub_s + "_" + str(e)
                 label = s + sub_s
 
@@ -162,8 +167,10 @@ for d in datasets:
 
                 color = colors[sub_s] if s == 'TrainPool' else colors[s]
 
-                exps = p_df['training_exp'].unique()
-                p_df_avg_eval_acc_for_exp = p_df.groupby(['training_exp'])['eval_accuracy'].mean()
+                # exps = p_df['training_exp'].unique()
+                exps = p_df['eval_exp'].unique()
+                # p_df_avg_eval_acc_for_exp = p_df.groupby(['training_exp'])['eval_accuracy'].mean()
+                p_df_avg_eval_acc_for_exp = p_df.groupby(['eval_exp'])['eval_accuracy'].mean()
 
                 print(d, s, sub_s, e, color, line_type)
                 print(exps)
@@ -172,7 +179,8 @@ for d in datasets:
                 ax.plot(exps, p_df_avg_eval_acc_for_exp, label=label, color=color, linestyle=line_type, marker=".")
         col += 1
     rows += 1
-axes[-len(experiences)].legend(ncol=6, bbox_to_anchor=(0.0, -0.1), loc="upper left")
+axes[-len(experiences)].legend(ncol=6, bbox_to_anchor=(0.0, -0.2), loc="upper left")
 # mplcursors.cursor(hover=True)
+plt.subplots_adjust(left=0.03, right=0.99)
 plt.savefig(args.resultsDir+'/Plot.png')
 plt.show()
