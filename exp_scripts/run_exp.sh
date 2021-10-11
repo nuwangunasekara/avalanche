@@ -14,7 +14,7 @@ dataset=(CORe50 RotatedMNIST RotatedCIFAR10 CORe50)
 strategy=(LwF EWC GDumb ER TrainPool)
 strategy=(TrainPool)
 
-mini_batch_size='10'
+mini_batch_size='16'
 
 tp_pool_type='6CNN'
 tp_number_of_nns_to_train='6'
