@@ -161,7 +161,7 @@ def main(args):
         elif args.task_detector_type == 'NAIVE_BAYES':
             predict_method = PREDICT_METHOD_NAIVE_BAYES
 
-        model_dump_dir = os.path.join(args.base_dir + '/logs/exp_logs/', args.log_file_name)
+        model_dump_dir = os.path.join(args.base_dir + '/logs/exp_logs/', args.log_file_name + '_f_pool')
         if os.path.isdir(model_dump_dir):
             shutil.rmtree(model_dump_dir)
         os.mkdir(model_dump_dir)
