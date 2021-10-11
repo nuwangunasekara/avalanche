@@ -162,7 +162,7 @@ def main(args):
             predict_method = PREDICT_METHOD_NAIVE_BAYES
 
         model_dump_dir = os.path.join(args.base_dir + '/logs/exp_logs/', args.log_file_name)
-        if not os.path.isdir(model_dump_dir):
+        if os.path.isdir(model_dump_dir):
             shutil.rmtree(model_dump_dir)
         os.mkdir(model_dump_dir)
 
