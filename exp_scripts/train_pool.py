@@ -1,3 +1,6 @@
+import os.path
+import shutil
+
 from avalanche.benchmarks import *
 from avalanche.benchmarks.classic.ccifar10 import RotatedCIFAR10_di
 
@@ -158,6 +161,11 @@ def main(args):
         elif args.task_detector_type == 'NAIVE_BAYES':
             predict_method = PREDICT_METHOD_NAIVE_BAYES
 
+        model_dump_dir = os.path.join(args.base_dir + '/logs/exp_logs/', args.log_file_name)
+        if not os.path.isdir(model_dump_dir):
+            shutil.rmtree(model_dump_dir)
+        os.mkdir(model_dump_dir)
+
         model = MultiMLP(
             num_classes=scenario.n_classes,
             use_threads=False,
@@ -168,7 +176,9 @@ def main(args):
             back_prop_skip_loss_threshold=args.skip_back_prop_threshold,
             device=device,
             train_task_predictor_at_the_end=args.train_task_predictor_at_the_end,
-            stats_file=args.base_dir + '/logs/exp_logs/' + args.log_file_name + '_Nets.csv')
+            stats_file=args.base_dir + '/logs/exp_logs/' + args.log_file_name + '_Nets.csv',
+            model_dump_dir=model_dump_dir,
+            reset_training_pool=args.reset_training_pool)
         optimizer = None
 
     criterion = torch.nn.CrossEntropyLoss()
@@ -290,11 +300,19 @@ if __name__ == '__main__':
                         help='back_prop_skip_loss_threshold for MultiMLP')
     parser.add_argument('--log_file_name', type=str, default='',
                         help='Log file name')
+
     parser.add_argument('--train_task_predictor_at_the_end', dest='train_task_predictor_at_the_end',
                         action='store_true')
     parser.add_argument('--no-train_task_predictor_at_the_end', dest='train_task_predictor_at_the_end',
                         action='store_false')
     parser.set_defaults(train_task_predictor_at_the_end=False)
+
+    # reset_training_pool
+    parser.add_argument('--reset_training_pool', dest='reset_training_pool',
+                        action='store_true')
+    parser.add_argument('--no-reset_training_pool', dest='reset_training_pool',
+                        action='store_false')
+    parser.set_defaults(reset_training_pool=False)
 
     args = parser.parse_args()
 

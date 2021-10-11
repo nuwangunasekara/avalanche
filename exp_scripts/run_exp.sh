@@ -19,6 +19,8 @@ mini_batch_size='10'
 tp_pool_type='6CNN'
 tp_number_of_nns_to_train='6'
 tp_predict_methods_array=('ONE_CLASS' 'ONE_CLASS_end' 'MAJORITY_VOTE' 'RANDOM' 'NAIVE_BAYES' 'NAIVE_BAYES_end' 'TASK_ID_KNOWN')
+tp_reset_tp='no_reset'
+tp_reset_tp='reset'
 
 model='SimpleCNN'
 model='CNN4'
@@ -108,8 +110,14 @@ do
             *)
               ;;
           esac
-          command_args="${command_args} --module MultiMLP --pool_type ${tp_pool_type} --number_of_mpls_to_train ${tp_number_of_nns_to_train} --skip_back_prop_threshold 0.0 --task_detector_type ${tp_p_method} ${tp_train_p_type}"
-          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_number_of_nns_to_train}_${tp_predict_method}"
+
+          if [ "${tp_reset_tp}" == "reset" ]; then
+            tp_reset_tp_cmd='--reset_training_pool'
+          else
+            tp_reset_tp_cmd='--no-reset_training_pool'
+          fi
+          command_args="${command_args} --module MultiMLP --pool_type ${tp_pool_type} --number_of_mpls_to_train ${tp_number_of_nns_to_train} --skip_back_prop_threshold 0.0 --task_detector_type ${tp_p_method} ${tp_train_p_type} ${tp_reset_tp_cmd}"
+          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_number_of_nns_to_train}_${tp_predict_method}_${tp_reset_tp}"
           ;;
         *)
           command_args=""

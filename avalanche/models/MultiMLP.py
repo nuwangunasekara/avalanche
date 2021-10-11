@@ -1,3 +1,4 @@
+import os.path
 import random
 import sys
 import threading
@@ -7,6 +8,7 @@ from copy import deepcopy
 from math import log
 
 from sklearn.svm import OneClassSVM
+from joblib import dump, load
 
 from skmultiflow.drift_detection.base_drift_detector import BaseDriftDetector
 from skmultiflow.drift_detection import ADWIN
@@ -237,6 +239,8 @@ class ANN:
         self.naive_bayes = None
         self.correct_network_selected_count = 0
         self.correct_class_predicted = 0
+        self.input_dimensions = 0
+        self.x_shape = None
         self.init_values()
 
     def init_values(self):
@@ -256,6 +260,8 @@ class ANN:
         self.naive_bayes = NaiveBayes()
         self.correct_network_selected_count = 0
         self.correct_class_predicted = 0
+        self.input_dimensions = 0
+        self.x_shape = None
 
         if self.hidden_layers_for_MLP is None:
             pass
@@ -269,12 +275,11 @@ class ANN:
                 print('Unknown hidden layer format is passed in: {}'.format(self.hidden_layers_for_MLP))
                 print('Expected format :{}'.format(default_mlp_hidden_layers))
                 exit(1)
-        self.model_name = '{}_{}_{:05f}_{}'.format(
+        self.model_name = '{}_{}_{:05f}'.format(
             'CNN' if self.network_type == NETWORK_TYPE_CNN else 'MLP_L1_' + str(
                 log(self.hidden_layers_for_MLP[0]['neurons'], 2) // 1),
             self.optimizer_type,
-            self.learning_rate,
-            self.adwin_delta)
+            self.learning_rate)
 
     def init_optimizer(self):
         self.net.to(self.device)
@@ -303,22 +308,24 @@ class ANN:
               '{}\n'
               '======================================='.format(self))
 
-    def initialize_network(self, x, input_dimensions=None):
+    def initialize_network(self):
         if self.network_type == NETWORK_TYPE_CNN:
             number_of_channels = 0
-            if len(x.shape) == 2:
+            if len(self.x_shape) == 2:
                 number_of_channels = 0
             else:
-                number_of_channels = x.shape[1]
+                number_of_channels = self.x_shape[1]
             self.net = SimpleCNN(num_channels=number_of_channels)
         else:
             self.net = PyNet(hidden_layers=self.hidden_layers_for_MLP, num_classes=self.num_classes,
-                             input_dimensions=input_dimensions)
+                             input_dimensions=self.input_dimensions)
         self.initialize_net_para()
 
     def train_net(self, x, y, c, r, task_id, use_instances_for_task_detector_training):
         if self.net is None:
-            self.initialize_network(x, input_dimensions=c)
+            self.input_dimensions = c
+            self.x_shape = deepcopy(x.shape)
+            self.initialize_network()
 
         self.samples_seen_at_train += r
 
@@ -398,6 +405,37 @@ def sort_by_loss(k: ANN):
     return k.get_loss_estimation()
 
 
+def save_model(best_model: ANN, abstract_model_file_name, nn_model_file_name, preserve_net=False):
+    # set unwanted attributes to None
+    best_model.learned_features_x = None
+    best_model.learned_features_x = [None]
+
+    net = best_model.net
+    best_model.net = None
+
+    # Save abstract model with one class classifier
+    # https://scikit-learn.org/stable/modules/model_persistence.html
+    # save model at self.model_dump_dir with name model_id_task_id one_class
+    # Save one_class_classifier
+    dump(best_model, abstract_model_file_name)
+
+    # Save NN model
+    # https://pytorch.org/tutorials/beginner/saving_loading_models.html#saving-loading-a-general-checkpoint-for-inference-and-or-resuming-training
+    torch.save(net.state_dict(), nn_model_file_name)
+    # load model and one_class_classifier and  add to frozen nets
+
+    if preserve_net:
+        best_model.net = net
+
+
+def load_model(abstract_model_file_name, nn_model_file_name):
+    abstract_model: ANN = load(abstract_model_file_name)
+    abstract_model.initialize_network()
+    abstract_model.net.load_state_dict(torch.load(nn_model_file_name))
+    abstract_model.net.eval()
+    return abstract_model
+
+
 class MultiMLP(nn.Module):
     def __init__(self,
                  num_classes=None,
@@ -412,7 +450,9 @@ class MultiMLP(nn.Module):
                  nn_pool_type='30MLP',
                  predict_method=PREDICT_METHOD_ONE_CLASS,
                  train_task_predictor_at_the_end=True,
-                 device='cpu'):
+                 device='cpu',
+                 model_dump_dir=None,
+                 reset_training_pool=True):
         super().__init__()
 
         # configuration variables (which has the same name as init parameters)
@@ -429,10 +469,13 @@ class MultiMLP(nn.Module):
         self.task_detector_type = predict_method
         self.train_task_predictor_at_the_end = train_task_predictor_at_the_end
         self.device = device
+        self.model_dump_dir = model_dump_dir
+        self.reset_training_pool = reset_training_pool
 
         # status variables
         self.train_nets = []  # type: List[ANN]
         self.frozen_nets = []  # type: List[ANN]
+        self.frozen_net_module_paths = []
         self.heading_printed = False
         self.samples_seen_for_train_after_drift = 0
         self.total_samples_seen_for_train = 0
@@ -591,22 +634,55 @@ class MultiMLP(nn.Module):
         self.train_nets.sort(key=sort_by_loss)
         return 0
 
+    def save_best_model_and_append_to_paths(self, best_model_idx):
+        best_model: ANN = self.train_nets[best_model_idx]
+        model_save_name = str(best_model.id) + '_' + str(self.task_id) + '_' + best_model.model_name
+
+        abstract_model_file_name = os.path.join(self.model_dump_dir, model_save_name)
+        nn_model_file_name = os.path.join(self.model_dump_dir, model_save_name + '_nn')
+
+        save_model(best_model, abstract_model_file_name, nn_model_file_name, preserve_net=True)
+
+        self.frozen_net_module_paths.append({'abstract_model_file_name': abstract_model_file_name,
+                                     'nn_model_file_name': nn_model_file_name})
+
+    def clear_frozen_pool(self):
+        if not self.reset_training_pool:
+            for i in range(len(self.frozen_net_module_paths)):
+                save_model(self.frozen_nets[i],
+                           self.frozen_net_module_paths[i]['abstract_model_file_name'],
+                           self.frozen_net_module_paths[i]['nn_model_file_name'])
+                self.frozen_nets[i] = None
+            self.frozen_nets = []
+
+    def load_frozen_pool(self):
+        if not self.reset_training_pool:
+            if len(self.frozen_nets) != 0:
+                print('Frozen pool is not empty')
+                return
+
+            for i in range(len(self.frozen_net_module_paths)):
+                self.frozen_nets.append(load_model(self.frozen_net_module_paths[i]['abstract_model_file_name'],
+                                                   self.frozen_net_module_paths[i]['nn_model_file_name']))
+
     def reset(self):
-        # configuration variables (which has the same name as init parameters) should be copied by the caller function
-        for i in range(len(self.train_nets)):
-            self.train_nets[i] = None
-        self.train_nets = None
-        self.train_nets = []  # type: List[ANN]
-        self.create_nn_pool()
+        if self.reset_training_pool:
+            # configuration variables (which has the same name as init parameters) should be copied by the caller function
+            for i in range(len(self.train_nets)):
+                self.train_nets[i] = None
+            self.train_nets = None
+            self.train_nets = []  # type: List[ANN]
+            self.create_nn_pool()
         return self
 
     @torch.no_grad()
     def add_nn_with_lowest_loss_to_frozen_list(self):
         idx = self.get_train_nn_index_with_lowest_loss()
 
-        for i in range(len(self.train_nets)):
-            if i != idx:  # clear other nets memory
-                self.train_nets[i] = None
+        if self.reset_training_pool:
+            for i in range(len(self.train_nets)):
+                if i != idx:  # clear other nets memory
+                    self.train_nets[i] = None
 
         if self.train_task_predictor_at_the_end:
             self.train_nets[idx].learned_features_x[0] = None  # clear this memory
@@ -629,7 +705,12 @@ class MultiMLP(nn.Module):
             if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
                 self.train_nets[idx].one_class_detector.fit(self.train_nets[idx].learned_features_x[0].numpy())
                 self.train_nets[idx].learned_features_x[0] = None
-        self.frozen_nets.append(self.train_nets[idx])
+
+        if self.reset_training_pool:
+            self.frozen_nets.append(self.train_nets[idx])
+        else:
+            self.save_best_model_and_append_to_paths(idx)
+
         self.task_id += 1
         self.accumulated_x = None
         self.accumulated_x = [None]
@@ -763,7 +844,8 @@ class MultiMLP(nn.Module):
         # print('---train_nets---', file=self.stats_file)
         self.print_nn_list(self.train_nets, list_type='train_net')
         # print('---frozen_nets---', file=self.stats_file)
-        self.print_nn_list(self.frozen_nets, list_type='frozen_net')
+        if len(self.frozen_nets) > 0:
+            self.print_nn_list(self.frozen_nets, list_type='frozen_net')
 
     def print_nn_list(self, l, list_type=None):
         for i in range(len(l)):
