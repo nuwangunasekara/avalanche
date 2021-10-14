@@ -624,7 +624,7 @@ class MultiMLP(nn.Module):
                 if self.use_one_class_probas:
                     df_scores = self.frozen_nets[i].one_class_detector.decision_function(xxx)
                     df_scores = df_scores.reshape(-1, 1)
-                    yyy = self.frozen_nets[i].logistic_regression.predict(df_scores)
+                    yyy = self.frozen_nets[i].logistic_regression.predict_proba(df_scores)
                 else:
                     yyy = df_scores = self.frozen_nets[i].one_class_detector.predict(xxx)
                 predictions.append(yyy)
