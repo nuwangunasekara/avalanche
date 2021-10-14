@@ -625,6 +625,7 @@ class MultiMLP(nn.Module):
                     df_scores = self.frozen_nets[i].one_class_detector.decision_function(xxx)
                     df_scores = df_scores.reshape(-1, 1)
                     yyy = self.frozen_nets[i].logistic_regression.predict_proba(df_scores)
+                    yyy = yyy[:, 1]  # get probabilities for class 1 (inlier)
                 else:
                     yyy = df_scores = self.frozen_nets[i].one_class_detector.predict(xxx)
                 predictions.append(yyy)
@@ -707,7 +708,7 @@ class MultiMLP(nn.Module):
                 xx = learned_features[0].cpu().numpy()
                 yy = self.train_nets[idx].one_class_detector.fit_predict(xx)
                 if self.use_one_class_probas:
-                    yy[yy == -1] = 0
+                    yy[yy == -1] = 0  # set outlier to be class 0
                     df_scores = self.train_nets[idx].one_class_detector.decision_function(xx)
                     df_scores = df_scores.reshape(-1, 1)
                     self.train_nets[idx].logistic_regression.fit(df_scores, yy)
@@ -721,7 +722,7 @@ class MultiMLP(nn.Module):
                 xx = self.train_nets[idx].learned_features_x[0].numpy()
                 yy = self.train_nets[idx].one_class_detector.fit_predict(xx)
                 if self.use_one_class_probas:
-                    yy[yy == -1] = 0
+                    yy[yy == -1] = 0  # set outlier to be class 0
                     df_scores = self.train_nets[idx].one_class_detector.decision_function(xx)
                     df_scores = df_scores.reshape(-1, 1)
                     self.train_nets[idx].logistic_regression.fit(df_scores, yy)
