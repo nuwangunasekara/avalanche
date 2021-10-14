@@ -21,7 +21,10 @@ tp_number_of_nns_to_train='6'
 tp_predict_methods_array=('ONE_CLASS' 'ONE_CLASS_end' 'MAJORITY_VOTE' 'RANDOM' 'NAIVE_BAYES' 'NAIVE_BAYES_end' 'TASK_ID_KNOWN')
 #tp_reset_tp='reset'
 tp_reset_tp='no_reset'
+#tp_use_one_class_probas='no_use_probas'
 tp_use_one_class_probas='use_probas'
+#tp_weights_for_each_network='no_use_weights'
+tp_weights_for_each_network='use_weights'
 
 
 model='SimpleCNN'
@@ -125,8 +128,14 @@ do
             tp_use_one_class_probas_cmd='--no-use_one_class_probas'
           fi
 
-          command_args="${command_args} --module MultiMLP --pool_type ${tp_pool_type} --number_of_mpls_to_train ${tp_number_of_nns_to_train} --skip_back_prop_threshold 0.0 --task_detector_type ${tp_p_method} ${tp_train_p_type} ${tp_reset_tp_cmd} ${tp_use_one_class_probas_cmd}"
-          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_number_of_nns_to_train}_${tp_predict_method}_${tp_reset_tp}_${tp_use_one_class_probas}"
+          if [ "${tp_weights_for_each_network}" == "use_weights" ]; then
+            tp_weights_for_each_network_cmd='--weights_for_each_network'
+          else
+            tp_weights_for_each_network_cmd='--no-weights_for_each_network'
+          fi
+
+          command_args="${command_args} --module MultiMLP --pool_type ${tp_pool_type} --number_of_mpls_to_train ${tp_number_of_nns_to_train} --skip_back_prop_threshold 0.0 --task_detector_type ${tp_p_method} ${tp_train_p_type} ${tp_reset_tp_cmd} ${tp_use_one_class_probas_cmd} ${tp_weights_for_each_network_cmd}"
+          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_number_of_nns_to_train}_${tp_predict_method}_${tp_reset_tp}_${tp_use_one_class_probas}_${tp_weights_for_each_network}"
           ;;
         *)
           command_args=""

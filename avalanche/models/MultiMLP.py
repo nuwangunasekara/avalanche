@@ -453,7 +453,9 @@ class MultiMLP(nn.Module):
                  device='cpu',
                  model_dump_dir=None,
                  reset_training_pool=True,
-                 use_one_class_probas=False):
+                 use_one_class_probas=False,
+                 vote_weight_bias=1e-3,
+                 use_weights_from_task_detectors=False):
         super().__init__()
 
         # configuration variables (which has the same name as init parameters)
@@ -473,6 +475,8 @@ class MultiMLP(nn.Module):
         self.model_dump_dir = model_dump_dir
         self.reset_training_pool = reset_training_pool
         self.use_one_class_probas = use_one_class_probas
+        self.vote_weight_bias = vote_weight_bias
+        self.use_weights_from_task_detectors = use_weights_from_task_detectors
 
         # status variables
         self.train_nets = []  # type: List[ANN]
@@ -563,17 +567,20 @@ class MultiMLP(nn.Module):
                     self.train_nets.append(tmp_ann)
                     self.available_nn_id += 1
 
-    def get_majority_vote_from_frozen_nets(self, x, x_flatten, mini_batch_size):
+    def get_majority_vote_from_frozen_nets(self, x, x_flatten, mini_batch_size, weights_for_each_network=None):
         predictions = None
         for i in range(len(self.frozen_nets)):
             if self.frozen_nets[i].network_type == NETWORK_TYPE_CNN:
                 xx = x
             else:
                 xx = x_flatten
+            p = self.frozen_nets[i].net(xx).unsqueeze(0)
+            if weights_for_each_network is not None:
+                p *= weights_for_each_network[i]
             if i == 0:
-                predictions = self.frozen_nets[i].net(xx).unsqueeze(0)
+                predictions = p
             else:
-                predictions = torch.cat((predictions, self.frozen_nets[i].net(xx).unsqueeze(0)), dim=0)
+                predictions = torch.cat((predictions, p), dim=0)
             self.frozen_nets[i].chosen_for_test += mini_batch_size
         return predictions.sum(axis=0) / len(self.frozen_nets)
 
@@ -619,8 +626,8 @@ class MultiMLP(nn.Module):
                 xx = xx.view(xx.size(0), -1)
             else:
                 xx = x_flatten
+            xxx = xx.cpu().numpy()
             if predictor == PREDICT_METHOD_ONE_CLASS:
-                xxx = xx.cpu().numpy()
                 if self.use_one_class_probas:
                     df_scores = self.frozen_nets[i].one_class_detector.decision_function(xxx)
                     df_scores = df_scores.reshape(-1, 1)
@@ -631,14 +638,15 @@ class MultiMLP(nn.Module):
                 predictions.append(yyy)
             elif predictor == PREDICT_METHOD_NAIVE_BAYES:
                 # pre and post pad 0's to get array length len(self.frozen_nets)
-                predictions.append(np.pad(self.frozen_nets[i].naive_bayes.predict_proba(xx.cpu().numpy()).sum(axis=0), (0, len(self.frozen_nets) - 1 - i), 'constant', constant_values=(0, 0)))
+                yyy = self.frozen_nets[i].naive_bayes.predict_proba(xxx)
+                yyy = yyy[:, i]  # get probas for i th task id from i th network
+                predictions.append(yyy)
 
-        if predictor == PREDICT_METHOD_ONE_CLASS:
-            best_matched_frozen_nn_index = np.argmax(np.array(predictions).sum(axis=1), axis=0).item()
-        elif predictor == PREDICT_METHOD_NAIVE_BAYES:
-            best_matched_frozen_nn_index = np.argmax(np.array(predictions)).item()
+        accumulated_probas = np.array(predictions).sum(axis=1)
+        best_matched_frozen_nn_index = np.argmax(accumulated_probas, axis=0).item()
+        weights_for_each_network = (accumulated_probas + self.vote_weight_bias) / x.size()[0]
 
-        return best_matched_frozen_nn_index
+        return weights_for_each_network, best_matched_frozen_nn_index
 
     def get_train_nn_index_with_lowest_loss(self):
         self.train_nets.sort(key=sort_by_loss)
@@ -749,15 +757,16 @@ class MultiMLP(nn.Module):
             if true_task_id < len(self.frozen_nets):
                 self.test_samples_seen_for_learned_tasks += r
             class_votes = []
+            weights_for_each_network = None
             if self.task_detector_type == PREDICT_METHOD_ONE_CLASS \
                     or self.task_detector_type == PREDICT_METHOD_RANDOM \
                     or self.task_detector_type == PREDICT_METHOD_TASK_ID_KNOWN \
                     or self.task_detector_type == PREDICT_METHOD_NW_CONFIDENCE \
                     or self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
                 if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
-                    best_matched_frozen_nn_index = self.get_best_matched_frozen_nn_index_using_a_predictor(x, x_flatten, self.task_detector_type)
+                    weights_for_each_network, best_matched_frozen_nn_index = self.get_best_matched_frozen_nn_index_using_a_predictor(x, x_flatten, self.task_detector_type)
                 elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
-                    best_matched_frozen_nn_index = self.get_best_matched_frozen_nn_index_using_a_predictor(x, x_flatten, self.task_detector_type)
+                    weights_for_each_network, best_matched_frozen_nn_index = self.get_best_matched_frozen_nn_index_using_a_predictor(x, x_flatten, self.task_detector_type)
                 elif self.task_detector_type == PREDICT_METHOD_RANDOM:
                     best_matched_frozen_nn_index = random.randrange(0, len(self.frozen_nets))
                 elif self.task_detector_type == PREDICT_METHOD_TASK_ID_KNOWN:
@@ -770,15 +779,21 @@ class MultiMLP(nn.Module):
                 if best_matched_frozen_nn_index == true_task_id:
                     self.correct_network_selected_count += r
                     self.frozen_nets[best_matched_frozen_nn_index].correct_network_selected_count += r
+
                 try:
                     self.frozen_nets[best_matched_frozen_nn_index].chosen_for_test += r
                 except IndexError:
                     print('Index error reached best_matched_frozen_nn_index {}'.format(best_matched_frozen_nn_index))
                     best_matched_frozen_nn_index = len(self.frozen_nets) - 1
-                class_votes = self.frozen_nets[best_matched_frozen_nn_index].net(
+
+                if self.use_weights_from_task_detectors:
+                    class_votes = self.get_majority_vote_from_frozen_nets(x, x_flatten, r, weights_for_each_network)
+                else:
+                    class_votes = self.frozen_nets[best_matched_frozen_nn_index].net(
                     x if self.frozen_nets[best_matched_frozen_nn_index].network_type == NETWORK_TYPE_CNN else x_flatten)
+
             elif self.task_detector_type == PREDICT_METHOD_MAJORITY_VOTE:
-                class_votes = self.get_majority_vote_from_frozen_nets(x, x_flatten, r)
+                class_votes = self.get_majority_vote_from_frozen_nets(x, x_flatten, r, None)
 
             correct_class_predicted = torch.eq(torch.argmax(class_votes, dim=1), y).sum().item()
             self.correct_class_predicted += correct_class_predicted

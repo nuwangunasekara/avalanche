@@ -179,7 +179,8 @@ def main(args):
             stats_file=args.base_dir + '/logs/exp_logs/' + args.log_file_name + '_Nets.csv',
             model_dump_dir=model_dump_dir,
             reset_training_pool=args.reset_training_pool,
-            use_one_class_probas=args.use_one_class_probas)
+            use_one_class_probas=args.use_one_class_probas,
+            weights_for_each_network=args.weights_for_each_network)
         optimizer = None
 
     criterion = torch.nn.CrossEntropyLoss()
@@ -321,6 +322,14 @@ if __name__ == '__main__':
     parser.add_argument('--no-use_one_class_probas', dest='use_one_class_probas',
                         action='store_false')
     parser.set_defaults(use_one_class_probas=False)
+
+    # weights_for_each_network
+    parser.add_argument('--weights_for_each_network', dest='weights_for_each_network',
+                        action='store_true')
+    parser.add_argument('--no-weights_for_each_network', dest='weights_for_each_network',
+                        action='store_false')
+    parser.set_defaults(weights_for_each_network=False)
+
     args = parser.parse_args()
 
     print(args)
