@@ -8,6 +8,7 @@ from copy import deepcopy
 from math import log
 
 from sklearn.svm import OneClassSVM
+from sklearn.linear_model import LogisticRegression
 from joblib import dump, load
 
 from skmultiflow.drift_detection.base_drift_detector import BaseDriftDetector
@@ -40,7 +41,6 @@ OP_TYPE_ADAM_AMSG_NC = 'Adam-AMSG-NC'
 
 NETWORK_TYPE_MLP = 0
 NETWORK_TYPE_CNN = 1
-
 
 PREDICT_METHOD_ONE_CLASS = 0
 PREDICT_METHOD_MAJORITY_VOTE = 1
@@ -236,6 +236,7 @@ class ANN:
         self.accumulated_loss = 0
         self.learned_features_x = [None]
         self.one_class_detector = None
+        self.logistic_regression = None
         self.naive_bayes = None
         self.correct_network_selected_count = 0
         self.correct_class_predicted = 0
@@ -257,6 +258,7 @@ class ANN:
         self.accumulated_loss = 0
         self.learned_features_x = [None]
         self.one_class_detector = OneClassSVM(gamma='auto')
+        self.logistic_regression = LogisticRegression(random_state=0)
         self.naive_bayes = NaiveBayes()
         self.correct_network_selected_count = 0
         self.correct_class_predicted = 0
@@ -266,7 +268,7 @@ class ANN:
         if self.hidden_layers_for_MLP is None:
             pass
         elif isinstance(self.hidden_layers_for_MLP, nn.Module):
-            # assumes input dimention is set properly in the network structure
+            # assumes input dimension is set properly in the network structure
             self.net = deepcopy(self.hidden_layers_for_MLP)
             self.initialize_net_para()
         elif isinstance(self.hidden_layers_for_MLP, list):
@@ -352,8 +354,6 @@ class ANN:
                 nb_y = np.empty((learned_features[0].shape[0],), dtype=np.int64)
                 nb_y.fill(task_id)
                 self.naive_bayes.partial_fit(learned_features[0].cpu().numpy(), nb_y)
-
-
 
         # backward propagation
         # print(self.net.linear[0].weight.data)
@@ -452,7 +452,8 @@ class MultiMLP(nn.Module):
                  train_task_predictor_at_the_end=True,
                  device='cpu',
                  model_dump_dir=None,
-                 reset_training_pool=True):
+                 reset_training_pool=True,
+                 use_one_class_probas=False):
         super().__init__()
 
         # configuration variables (which has the same name as init parameters)
@@ -471,6 +472,7 @@ class MultiMLP(nn.Module):
         self.device = device
         self.model_dump_dir = model_dump_dir
         self.reset_training_pool = reset_training_pool
+        self.use_one_class_probas = use_one_class_probas
 
         # status variables
         self.train_nets = []  # type: List[ANN]
@@ -618,7 +620,14 @@ class MultiMLP(nn.Module):
             else:
                 xx = x_flatten
             if predictor == PREDICT_METHOD_ONE_CLASS:
-                predictions.append(self.frozen_nets[i].one_class_detector.predict(xx.cpu().numpy()))
+                xxx = xx.cpu().numpy()
+                if self.use_one_class_probas:
+                    df_scores = self.frozen_nets[i].one_class_detector.decision_function(xxx)
+                    df_scores = df_scores.reshape(-1, 1)
+                    yyy = self.frozen_nets[i].logistic_regression.predict(df_scores)
+                else:
+                    yyy = df_scores = self.frozen_nets[i].one_class_detector.predict(xxx)
+                predictions.append(yyy)
             elif predictor == PREDICT_METHOD_NAIVE_BAYES:
                 # pre and post pad 0's to get array length len(self.frozen_nets)
                 predictions.append(np.pad(self.frozen_nets[i].naive_bayes.predict_proba(xx.cpu().numpy()).sum(axis=0), (0, len(self.frozen_nets) - 1 - i), 'constant', constant_values=(0, 0)))
@@ -695,7 +704,13 @@ class MultiMLP(nn.Module):
             outputs = self.train_nets[idx].net(self.accumulated_x[0].to(device), learned_features=learned_features)
 
             if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
-                self.train_nets[idx].one_class_detector.fit(learned_features[0].cpu().numpy())
+                xx = learned_features[0].cpu().numpy()
+                yy = self.train_nets[idx].one_class_detector.fit_predict(xx)
+                if self.use_one_class_probas:
+                    yy[yy == -1] = 0
+                    df_scores = self.train_nets[idx].one_class_detector.decision_function(xx)
+                    df_scores = df_scores.reshape(-1, 1)
+                    self.train_nets[idx].logistic_regression.fit(df_scores, yy)
             elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
                 nb_y = np.empty((learned_features[0].shape[0],), dtype=np.int64)
                 nb_y.fill(self.task_id)
@@ -703,7 +718,14 @@ class MultiMLP(nn.Module):
             self.train_nets[idx].net.to(self.train_nets[idx].device)   # move the model back to original device
         else:
             if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
-                self.train_nets[idx].one_class_detector.fit(self.train_nets[idx].learned_features_x[0].numpy())
+                xx = self.train_nets[idx].learned_features_x[0].numpy()
+                yy = self.train_nets[idx].one_class_detector.fit_predict(xx)
+                if self.use_one_class_probas:
+                    yy[yy == -1] = 0
+                    df_scores = self.train_nets[idx].one_class_detector.decision_function(xx)
+                    df_scores = df_scores.reshape(-1, 1)
+                    self.train_nets[idx].logistic_regression.fit(df_scores, yy)
+
                 self.train_nets[idx].learned_features_x[0] = None
 
         if self.reset_training_pool:
