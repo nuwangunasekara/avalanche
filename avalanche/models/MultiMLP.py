@@ -786,7 +786,9 @@ class MultiMLP(nn.Module):
                     print('Index error reached best_matched_frozen_nn_index {}'.format(best_matched_frozen_nn_index))
                     best_matched_frozen_nn_index = len(self.frozen_nets) - 1
 
-                if self.use_weights_from_task_detectors:
+                if self.use_weights_from_task_detectors and (
+                        self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or
+                        self.task_detector_type == PREDICT_METHOD_ONE_CLASS):
                     class_votes = self.get_majority_vote_from_frozen_nets(x, x_flatten, r, weights_for_each_network)
                 else:
                     class_votes = self.frozen_nets[best_matched_frozen_nn_index].net(
