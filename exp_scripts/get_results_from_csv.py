@@ -13,9 +13,10 @@ pd.set_option('display.width', None)
 # pd.set_option('display.max_colwidth', -1)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-r", "--resultsDir", type=str, help="Results directory", default='/Users/ng98/Desktop/avalanche_test/results/')
+parser.add_argument("-r", "--resultsDir", type=str, help="Results directory", default='/Users/ng98/Desktop/results/results/no_reset_no_use_probas_no_use_weights')
 args = parser.parse_args()
 
+fig_title = None
 csv_files = []
 if len(csv_files) == 0:
     command = subprocess.Popen("find " + args.resultsDir + " -iname '*eval_results.csv'",
@@ -29,7 +30,6 @@ df_all = pd.DataFrame(columns=['dataset', 'strategy', 'sub_strategy', 'eval_accu
 
 for csv_file in csv_files:
     log_file = csv_file.replace('/csv_data/', '/exp_logs/').replace('/eval_results.csv', '')
-    print(log_file)
     df_frozen, df_correct = get_net_info(log_file)
     df = pd.read_csv(csv_file)
     last_exp_id = df['training_exp'].max()
@@ -38,14 +38,23 @@ for csv_file in csv_files:
     dataset = exp_info.split('_')[0]
     strategy = exp_info.split('_')[1]
     sub_strategy = exp_info.split('_')[-1]
-    match = re.search('ONE_CLASS.*|MAJORITY_VOTE|RANDOM|NAIVE_BAYES.*|TASK_ID_KNOWN|SimpleCNN|CNN4', exp_info)
     correct_net = 0.0
+
+    if exp_info.find('NAIVE_BAYES_end') >= 0 or exp_info.find('ONE_CLASS_end') >= 0:
+        initial_pattern = 'ONE_CLASS_end|NAIVE_BAYES_end'
+    else:
+        initial_pattern = 'ONE_CLASS|NAIVE_BAYES'
+    match = re.search('(' + initial_pattern + '|MAJORITY_VOTE|RANDOM|TASK_ID_KNOWN|SimpleCNN|CNN4)(.*)', exp_info)
     if match:
-        sub_strategy = match.group(0)
-        if not (sub_strategy == 'SimpleCNN' or sub_strategy == 'CNN4'):
-            correct_net = df_correct.query("training_exp == " + last_exp_id_str).loc[last_exp_id, 'correct_net_percentage']
-            print(df_frozen)
-            print(df_correct)
+        sub_strategy = match.group(1)
+        if len(match.group(2)) > 0 and (sub_strategy != match.group(2)):
+            if fig_title is None:
+                fig_title = match.group(2)
+        if strategy == 'TrainPool':
+            # correct_net = df_correct.query("training_exp == " + last_exp_id_str).loc[last_exp_id, 'correct_net_percentage']
+            # print(df_frozen)
+            # print(df_correct)
+            pass
     else:
         sub_strategy = 'NA'
 
@@ -66,14 +75,9 @@ for csv_file in csv_files:
 
     df_final_results = df_final_results.append(tmp_pd, ignore_index=True)
 
-print(df_final_results)
 
-df_final_results.to_csv(args.resultsDir+'/Final_results.csv', header=True, index=False)
+df_final_results.to_csv(args.resultsDir+'/Results.csv', header=True, index=False)
 
-pd_forgetting_0 = pd.pivot_table(
-    df_final_results, values='forgetting', index=['dataset'], columns=['strategy', 'sub_strategy'], aggfunc=np.mean, fill_value=0)
-pd_eval_accuracy_0 = pd.pivot_table(
-    df_final_results, values='eval_accuracy', index=['dataset'], columns=['strategy', 'sub_strategy'], aggfunc=np.mean, fill_value=0)
 pd_avg_forgetting = pd.pivot_table(
     df_final_results, values='avg_eval_forgetting_after_last', index=['dataset'], columns=['strategy', 'sub_strategy'], aggfunc=np.mean, fill_value=0)
 pd_avg_eval_accuracy = pd.pivot_table(
@@ -81,10 +85,6 @@ pd_avg_eval_accuracy = pd.pivot_table(
 pd_correct_net = pd.pivot_table(
     df_final_results, values='correct_net_percentage', index=['dataset'], columns=['strategy', 'sub_strategy'], aggfunc=np.mean, fill_value=0)
 
-pd_forgetting_0_std = pd.pivot_table(
-    df_final_results, values='forgetting', index=['dataset'], columns=['strategy', 'sub_strategy'], aggfunc=np.std, fill_value=0)
-pd_eval_accuracy_0_std = pd.pivot_table(
-    df_final_results, values='eval_accuracy', index=['dataset'], columns=['strategy', 'sub_strategy'], aggfunc=np.std, fill_value=0)
 pd_avg_forgetting_std = pd.pivot_table(
     df_final_results, values='avg_eval_forgetting_after_last', index=['dataset'], columns=['strategy', 'sub_strategy'], aggfunc=np.std, fill_value=0)
 pd_avg_eval_accuracy_std = pd.pivot_table(
@@ -92,14 +92,7 @@ pd_avg_eval_accuracy_std = pd.pivot_table(
 pd_correct_net_std = pd.pivot_table(
     df_final_results, values='correct_net_percentage', index=['dataset'], columns=['strategy', 'sub_strategy'], aggfunc=np.std, fill_value=0)
 
-with pd.ExcelWriter(args.resultsDir+'/Final_results.xlsx') as writer:
-    df_final_results.to_excel(writer, sheet_name='RawResults', index=True)
-
-    pd_eval_accuracy_0.to_excel(writer, sheet_name='AccAfterLast_0', index=True)
-    pd_eval_accuracy_0_std.to_excel(writer, sheet_name='AccAfterLast_0S', index=True)
-    pd_forgetting_0.to_excel(writer, sheet_name='Forgetting_0', index=True)
-    pd_forgetting_0_std.to_excel(writer, sheet_name='Forgetting_0S', index=True)
-
+with pd.ExcelWriter(args.resultsDir+'/Results.xlsx') as writer:
     pd_avg_eval_accuracy.to_excel(writer, sheet_name='AvgAccAfterLast', index=True)
     pd_avg_eval_accuracy_std.to_excel(writer, sheet_name='AvgAccAfterLastS', index=True)
     pd_avg_forgetting.to_excel(writer, sheet_name='AvgForgetting', index=True)
@@ -108,9 +101,13 @@ with pd.ExcelWriter(args.resultsDir+'/Final_results.xlsx') as writer:
     pd_correct_net.to_excel(writer, sheet_name='NetSelect', index=True)
     pd_correct_net_std.to_excel(writer, sheet_name='NetSelectS', index=True)
 
-fig = plt.figure(constrained_layout=False)
+    df_final_results.to_excel(writer, sheet_name='RawResults', index=True)
+
+fig = plt.figure(constrained_layout=False, figsize=(18, 10))
 datasets = df_all["dataset"].unique()
+datasets.sort()
 experiences = df_all['eval_exp'].unique()
+experiences.sort()
 strategies = df_all["strategy"].unique()
 sub_strategies = df_all["sub_strategy"].unique()
 
@@ -155,12 +152,11 @@ for d in datasets:
 
                 p_df = df_all.query(
                     'dataset .str.contains("' + d + '") and strategy.str.contains("' + s + '") and sub_strategy.str.contains("' + sub_s +'") and training_exp == ' + str(e), engine='python')
-                # label = s + "_" + sub_s + "_" + str(e)
-                label = s + sub_s
 
+                label = s + sub_s
                 line_type = line[0]
                 if s == 'TrainPool':
-                    pass
+                    label = 'TP_' + sub_s
                 else:
                     if sub_s == 'SimpleCNN':
                         line_type = line[1]
@@ -172,15 +168,13 @@ for d in datasets:
                 # p_df_avg_eval_acc_for_exp = p_df.groupby(['training_exp'])['eval_accuracy'].mean()
                 p_df_avg_eval_acc_for_exp = p_df.groupby(['eval_exp'])['eval_accuracy'].mean()
 
-                print(d, s, sub_s, e, color, line_type)
-                print(exps)
-                print(p_df_avg_eval_acc_for_exp)
 
                 ax.plot(exps, p_df_avg_eval_acc_for_exp, label=label, color=color, linestyle=line_type, marker=".")
         col += 1
     rows += 1
 axes[-len(experiences)].legend(ncol=6, bbox_to_anchor=(0.0, -0.2), loc="upper left")
 # mplcursors.cursor(hover=True)
-plt.subplots_adjust(left=0.03, right=0.99)
-plt.savefig(args.resultsDir+'/Plot.png')
+plt.subplots_adjust(left=0.04, right=0.99)
+fig.suptitle(fig_title)
+plt.savefig(args.resultsDir+'/Plot' + fig_title + '.png')
 plt.show()
