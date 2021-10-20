@@ -169,7 +169,7 @@ def main(args):
         model = MultiMLP(
             num_classes=scenario.n_classes,
             use_threads=False,
-            use_adwin=True,
+            loss_estimator_delta=1e-3,
             number_of_mlps_to_train=args.number_of_mpls_to_train,
             predict_method=predict_method,
             nn_pool_type=args.pool_type,

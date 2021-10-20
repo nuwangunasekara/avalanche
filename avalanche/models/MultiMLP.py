@@ -201,8 +201,7 @@ class ANN:
                  device='cpu',
                  optimizer_type=OP_TYPE_SGD,
                  loss_f=nn.CrossEntropyLoss(),
-                 adwin_delta=1e-3,
-                 use_adwin=False,
+                 loss_estimator_delta=1e-3,
                  task_detector_type=PREDICT_METHOD_ONE_CLASS,
                  back_prop_skip_loss_threshold=0.6,
                  train_task_predictor_at_the_end=True):
@@ -217,9 +216,8 @@ class ANN:
         self.device = device
         self.optimizer_type = optimizer_type
         self.loss_f = loss_f
-        self.adwin_delta = adwin_delta
+        self.loss_estimator_delta = loss_estimator_delta
         self.back_prop_skip_loss_threshold = back_prop_skip_loss_threshold
-        self.use_adwin = use_adwin
         self.task_detector_type = task_detector_type
         self.train_task_predictor_at_the_end = train_task_predictor_at_the_end
 
@@ -232,7 +230,7 @@ class ANN:
         self.trained_count = 0
         self.chosen_for_test = 0
         self.chosen_after_train = 0
-        self.estimator: BaseDriftDetector = None
+        self.loss_estimator: BaseDriftDetector = None
         self.accumulated_loss = 0
         self.learned_features_x = [None]
         self.one_class_detector = None
@@ -254,7 +252,7 @@ class ANN:
         self.trained_count = 0
         self.chosen_for_test = 0
         self.chosen_after_train = 0
-        self.estimator = ADWIN(delta=self.adwin_delta)
+        self.loss_estimator = ADWIN(delta=self.loss_estimator_delta)
         self.accumulated_loss = 0
         self.learned_features_x = [None]
         self.one_class_detector = OneClassSVM(gamma='auto')
@@ -363,7 +361,7 @@ class ANN:
             self.optimizer.step()  # Does the update
             self.trained_count += 1
 
-        self.estimator.add_element(self.loss.item())
+        self.loss_estimator.add_element(self.loss.item())
         self.accumulated_loss += self.loss.item()
 
         # if self.estimator.detected_change():
@@ -378,10 +376,7 @@ class ANN:
         return self
 
     def get_loss_estimation(self):
-        if self.use_adwin:
-            return self.estimator.estimation
-        else:
-            return self.accumulated_loss / self.samples_seen_at_train if self.samples_seen_at_train != 0 else 0.0
+        return self.loss_estimator.estimation
 
     def __str__(self):
         return str(self.__class__) + ": " + str(self.__dict__)
@@ -399,10 +394,6 @@ def flatten_dimensions(mb_x):
 
 def net_train(net: ANN, x: np.ndarray, r, c, y: np.ndarray, task_id, use_instances_for_task_detector_training):
     net.train_net(x, y, c, r, task_id, use_instances_for_task_detector_training)
-
-
-def sort_by_loss(k: ANN):
-    return k.get_loss_estimation()
 
 
 def save_model(best_model: ANN, abstract_model_file_name, nn_model_file_name, preserve_net=False):
@@ -443,8 +434,7 @@ class MultiMLP(nn.Module):
                  stats_file=sys.stdout,
                  number_of_mlps_to_train=10,
                  number_of_instances_to_train_using_all_mlps_at_start=1000,
-                 use_adwin=True,
-                 adwin_delta=1e-3,
+                 loss_estimator_delta=1e-3,
                  back_prop_skip_loss_threshold=0.6,
                  stats_print_frequency=0,
                  nn_pool_type='30MLP',
@@ -464,8 +454,7 @@ class MultiMLP(nn.Module):
         self.stats_file = stats_file
         self.number_of_mlps_to_train = number_of_mlps_to_train
         self.number_of_instances_to_train_using_all_mlps_at_start = number_of_instances_to_train_using_all_mlps_at_start
-        self.adwin_delta = adwin_delta
-        self.use_adwin = use_adwin
+        self.loss_estimator_delta = loss_estimator_delta
         self.stats_print_frequency = stats_print_frequency
         self.back_prop_skip_loss_threshold = back_prop_skip_loss_threshold
         self.nn_pool_type = nn_pool_type
@@ -557,8 +546,7 @@ class MultiMLP(nn.Module):
                                   learning_rate=5 / (10 ** lr_denominator_in_log10),
                                   network_type=network_type,
                                   optimizer_type=optimizer_type,
-                                  adwin_delta=self.adwin_delta,
-                                  use_adwin=self.use_adwin,
+                                  loss_estimator_delta=self.loss_estimator_delta,
                                   back_prop_skip_loss_threshold=self.back_prop_skip_loss_threshold,
                                   task_detector_type=self.task_detector_type,
                                   num_classes=self.num_classes,
@@ -649,7 +637,7 @@ class MultiMLP(nn.Module):
         return weights_for_each_network, best_matched_frozen_nn_index
 
     def get_train_nn_index_with_lowest_loss(self):
-        self.train_nets.sort(key=sort_by_loss)
+        self.train_nets.sort(key=lambda ann: ann.loss_estimator.estimation)
         return 0
 
     def save_best_model_and_append_to_paths(self, best_model_idx):
@@ -817,7 +805,7 @@ class MultiMLP(nn.Module):
             number_of_mlps_to_train = len(self.train_nets)
             number_of_top_mlps_to_train = len(self.train_nets) // 2
 
-        self.train_nets.sort(key=sort_by_loss)
+        self.train_nets.sort(key=lambda ann: ann.loss_estimator.estimation)
         for i in range(number_of_mlps_to_train):
             if i < number_of_top_mlps_to_train:
                 # top most train
@@ -899,7 +887,7 @@ class MultiMLP(nn.Module):
                 l[i].samples_seen_at_train,
                 l[i].trained_count,
                 0 if l[i].samples_seen_at_train == 0 else l[i].accumulated_loss / l[i].samples_seen_at_train,
-                l[i].estimator.estimation,
+                l[i].loss_estimator.estimation,
                 l[i].chosen_after_train,
                 self.samples_seen_for_test,
                 self.test_samples_seen_for_learned_tasks,
