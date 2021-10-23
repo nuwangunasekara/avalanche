@@ -19,6 +19,7 @@ mini_batch_size='16'
 tp_pool_type='6CNN'
 tp_number_of_nns_to_train='6'
 tp_predict_methods_array=('ONE_CLASS' 'ONE_CLASS_end' 'MAJORITY_VOTE' 'RANDOM' 'NAIVE_BAYES' 'NAIVE_BAYES_end' 'TASK_ID_KNOWN')
+tp_predict_methods_array=('ONE_CLASS')
 #tp_reset_tp='reset'
 tp_reset_tp='no_reset'
 #tp_use_one_class_probas='no_use_probas'
