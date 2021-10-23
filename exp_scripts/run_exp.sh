@@ -25,6 +25,8 @@ tp_reset_tp='no_reset'
 tp_use_one_class_probas='use_probas'
 #tp_use_weights_from_task_detectors='no_use_weights'
 tp_use_weights_from_task_detectors='use_weights'
+#tp_auto_detect_tasks='no_detect'
+tp_auto_detect_tasks='detect'
 
 
 model='SimpleCNN'
@@ -134,8 +136,14 @@ do
             tp_use_weights_from_task_detectors_cmd='--no-use_weights_from_task_detectors'
           fi
 
-          command_args="${command_args} --module MultiMLP --pool_type ${tp_pool_type} --number_of_mpls_to_train ${tp_number_of_nns_to_train} --skip_back_prop_threshold 0.0 --task_detector_type ${tp_p_method} ${tp_train_p_type} ${tp_reset_tp_cmd} ${tp_use_one_class_probas_cmd} ${tp_use_weights_from_task_detectors_cmd}"
-          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_number_of_nns_to_train}_${tp_predict_method}_${tp_reset_tp}_${tp_use_one_class_probas}_${tp_use_weights_from_task_detectors}"
+          if [ "${tp_auto_detect_tasks}" == "detect" ]; then
+            tp_auto_detect_tasks_cmd='--auto_detect_tasks'
+          else
+            tp_auto_detect_tasks_cmd='--no-auto_detect_tasks'
+          fi
+
+          command_args="${command_args} --module MultiMLP --pool_type ${tp_pool_type} --number_of_mpls_to_train ${tp_number_of_nns_to_train} --skip_back_prop_threshold 0.0 --task_detector_type ${tp_p_method} ${tp_train_p_type} ${tp_reset_tp_cmd} ${tp_use_one_class_probas_cmd} ${tp_use_weights_from_task_detectors_cmd} ${tp_auto_detect_tasks_cmd}"
+          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_number_of_nns_to_train}_${tp_predict_method}_${tp_reset_tp}_${tp_use_one_class_probas}_${tp_use_weights_from_task_detectors}_${tp_auto_detect_tasks}"
           ;;
         *)
           command_args=""
