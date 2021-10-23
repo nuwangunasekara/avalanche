@@ -8,8 +8,8 @@ class TrainPoolPlugin(StrategyPlugin):
         self.net = None
         # self.loss = None
         # self.optimizer = None
-        self.loss_estimator = ADWIN(delta=1e-5)
         super().__init__()
+        print(self)
 
     def before_forward(self, strategy: 'BaseStrategy', **kwargs):
         strategy.model.call_predict = False
@@ -19,15 +19,18 @@ class TrainPoolPlugin(StrategyPlugin):
         strategy.model.mb_yy = None
 
     def before_backward(self, strategy: 'BaseStrategy', **kwargs):
-        pre_update_loss_estimation = self.loss_estimator.estimation
-        self.loss_estimator.add_element(strategy.loss.item())
-        if self.loss_estimator.detected_change() and self.loss_estimator.estimation > pre_update_loss_estimation:
-            strategy.model.samples_seen_for_train_after_drift = 0
-            print('Change detected. Training ALL NNs')
+        pass
 
-    def after_training_exp(self, strategy: 'BaseStrategy', **kwargs):
+    @staticmethod
+    def add_to_frozen_pool(strategy: 'BaseStrategy'):
         strategy.model.add_nn_with_lowest_loss_to_frozen_list()
         strategy.model.reset()
+
+    def after_training_exp(self, strategy: 'BaseStrategy', **kwargs):
+        if strategy.model.auto_detect_tasks:
+            pass
+        else:
+            self.add_to_frozen_pool(strategy)
 
     def after_training(self, strategy: 'BaseStrategy', **kwargs):
         strategy.model.print_stats(after_eval=False)

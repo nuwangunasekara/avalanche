@@ -180,7 +180,8 @@ def main(args):
             model_dump_dir=model_dump_dir,
             reset_training_pool=args.reset_training_pool,
             use_one_class_probas=args.use_one_class_probas,
-            use_weights_from_task_detectors=args.use_weights_from_task_detectors)
+            use_weights_from_task_detectors=args.use_weights_from_task_detectors,
+            auto_detect_tasks=args.auto_detect_tasks)
         optimizer = None
 
     criterion = torch.nn.CrossEntropyLoss()
@@ -329,6 +330,13 @@ if __name__ == '__main__':
     parser.add_argument('--no-use_weights_from_task_detectors', dest='use_weights_from_task_detectors',
                         action='store_false')
     parser.set_defaults(use_weights_from_task_detectors=False)
+
+    # auto_detect_tasks
+    parser.add_argument('--auto_detect_tasks', dest='auto_detect_tasks',
+                        action='store_true')
+    parser.add_argument('--no-auto_detect_tasks', dest='auto_detect_tasks',
+                        action='store_false')
+    parser.set_defaults(auto_detect_tasks=False)
 
     args = parser.parse_args()
 
