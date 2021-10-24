@@ -7,8 +7,9 @@ import numpy as np
 from copy import deepcopy
 from math import log
 
-from sklearn.svm import OneClassSVM
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import SGDClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn import linear_model
 from joblib import dump, load
 
 from skmultiflow.drift_detection.base_drift_detector import BaseDriftDetector
@@ -50,9 +51,10 @@ PREDICT_METHOD_NW_CONFIDENCE = 4
 PREDICT_METHOD_NAIVE_BAYES = 5
 
 
-def train_one_class_classifier(features, one_class_detector, train_logistic_regression, logistic_regression):
+def train_one_class_classifier(features, one_class_detector, train_logistic_regression, logistic_regression, scaler=None):
     xx = features.cpu().numpy()
-    yy = one_class_detector.fit_predict(xx)
+    one_class_detector.partial_fit(xx)
+    yy = one_class_detector.predict(xx)
     if train_logistic_regression:
         yy[yy == -1] = 0  # set outlier to be class 0
         df_scores = one_class_detector.decision_function(xx)
@@ -61,7 +63,10 @@ def train_one_class_classifier(features, one_class_detector, train_logistic_regr
         if yy.sum() == yy.shape[0]:  # only class 1 available
             yy[df_scores.argmin()] = 0
         df_scores = df_scores.reshape(-1, 1)
-        logistic_regression.fit(df_scores, yy)
+        if scaler is not None:
+            scaler.partial_fit(df_scores)
+            df_scores = scaler.transform(df_scores)
+        logistic_regression.partial_fit(df_scores, yy, classes=np.array([0, 1]))
 
 
 class SimpleCNN(nn.Module):
@@ -246,9 +251,9 @@ class ANN:
         self.chosen_after_train = 0
         self.loss_estimator: BaseDriftDetector = None
         self.accumulated_loss = 0
-        self.learned_features_x = [None]
         self.one_class_detector = None
         self.one_class_detector_fit_called = False
+        self.scaler = None
         self.logistic_regression = None
         self.naive_bayes = None
         self.correct_network_selected_count = 0
@@ -270,9 +275,9 @@ class ANN:
         self.chosen_after_train = 0
         self.loss_estimator = ADWIN(delta=self.loss_estimator_delta)
         self.accumulated_loss = 0
-        self.learned_features_x = [None]
-        self.one_class_detector = OneClassSVM(gamma='auto')
-        self.logistic_regression = LogisticRegression(random_state=0)
+        self.one_class_detector = linear_model.SGDOneClassSVM(random_state=0, shuffle=False, max_iter=1, warm_start=True)
+        self.scaler = StandardScaler()
+        self.logistic_regression = SGDClassifier(loss='log', random_state=None, max_iter=1, shuffle=False, warm_start=True)
         self.naive_bayes = NaiveBayes()
         self.correct_network_selected_count = 0
         self.correct_class_predicted = 0
@@ -342,10 +347,11 @@ class ANN:
         train_one_class_classifier(features,
                                    self.one_class_detector,
                                    train_logistic_regression,
-                                   self.logistic_regression)
+                                   self.logistic_regression,
+                                   self.scaler)
         self.one_class_detector_fit_called = True
 
-    def train_net(self, x, y, c, r, task_id, use_instances_for_task_detector_training):
+    def train_net(self, x, y, c, r, task_id, use_instances_for_task_detector_training, use_one_class_probas):
         if self.net is None:
             self.input_dimensions = c
             self.x_shape = deepcopy(x.shape)
@@ -368,10 +374,7 @@ class ANN:
             pass
         else: # train task predictor online using current learned_features
             if self.task_detector_type == PREDICT_METHOD_ONE_CLASS and use_instances_for_task_detector_training:
-                if self.learned_features_x[0] is None:
-                    self.learned_features_x[0] = learned_features[0].cpu()
-                else:
-                    self.learned_features_x[0] = torch.cat([self.learned_features_x[0], learned_features[0].cpu()], dim=0)
+                self.train_one_class_classifier(learned_features[0].cpu(), use_one_class_probas)
             elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
                 nb_y = np.empty((learned_features[0].shape[0],), dtype=np.int64)
                 nb_y.fill(task_id)
@@ -419,14 +422,12 @@ def flatten_dimensions(mb_x):
     return c, x.view(x.size(0), c)
 
 
-def net_train(net: ANN, x: np.ndarray, r, c, y: np.ndarray, task_id, use_instances_for_task_detector_training):
-    net.train_net(x, y, c, r, task_id, use_instances_for_task_detector_training)
+def net_train(net: ANN, x: np.ndarray, r, c, y: np.ndarray, task_id, use_instances_for_task_detector_training, use_one_class_probas):
+    net.train_net(x, y, c, r, task_id, use_instances_for_task_detector_training, use_one_class_probas)
 
 
 def save_model(best_model: ANN, abstract_model_file_name, nn_model_file_name, preserve_net=False):
     # set unwanted attributes to None
-    best_model.learned_features_x = None
-    best_model.learned_features_x = [None]
 
     net = best_model.net
     best_model.net = None
@@ -708,8 +709,6 @@ class MultiMLP(nn.Module):
                     self.train_nets[i] = None
 
         if self.train_task_predictor_at_the_end:
-            self.train_nets[idx].learned_features_x[0] = None  # clear this memory
-
             learned_features = [None]
             device = torch.device('cpu')
             self.train_nets[idx].net.to(device)  # move the model to cpu
@@ -727,10 +726,7 @@ class MultiMLP(nn.Module):
             self.train_nets[idx].net.to(self.train_nets[idx].device)   # move the model back to original device
         else:
             if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
-                self.train_nets[idx].train_one_class_classifier(self.train_nets[idx].learned_features_x[0],
-                                                                self.use_one_class_probas)
-
-                self.train_nets[idx].learned_features_x[0] = None
+                pass
 
         if self.reset_training_pool:
             self.frozen_nets.append(self.train_nets[idx])
@@ -855,9 +851,9 @@ class MultiMLP(nn.Module):
                 c = c_flatten
 
             if self.use_threads:
-                t.append(threading.Thread(target=net_train, args=(self.train_nets[nn_index], xx, r, c, y, self.task_id, use_instances_for_task_detector_training,)))
+                t.append(threading.Thread(target=net_train, args=(self.train_nets[nn_index], xx, r, c, y, self.task_id, use_instances_for_task_detector_training, self.use_one_class_probas,)))
             else:
-                self.train_nets[nn_index].train_net(xx, y, c, r, self.task_id, use_instances_for_task_detector_training)
+                self.train_nets[nn_index].train_net(xx, y, c, r, self.task_id, use_instances_for_task_detector_training, self.use_one_class_probas)
         if self.use_threads:
             for i in range(len(t)):
                 t[i].start()
