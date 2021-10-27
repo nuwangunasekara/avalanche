@@ -24,6 +24,7 @@ class TrainPoolPlugin(StrategyPlugin):
     @staticmethod
     def add_to_frozen_pool(strategy: 'BaseStrategy'):
         strategy.model.add_nn_with_lowest_loss_to_frozen_list()
+        strategy.model.reset_one_class_detectors_and_loss_estimators()
         strategy.model.reset()
 
     def after_training_exp(self, strategy: 'BaseStrategy', **kwargs):

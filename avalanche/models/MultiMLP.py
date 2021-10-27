@@ -210,6 +210,17 @@ class PyNet(nn.Module):
         return x
 
 
+def init_one_class_detector():
+    return linear_model.SGDOneClassSVM(random_state=0, shuffle=False, max_iter=1, warm_start=True)
+
+
+def init_scaler():
+    return StandardScaler()
+
+
+def init_logistic_regression():
+    return SGDClassifier(loss='log', random_state=None, max_iter=1, shuffle=False, warm_start=True)
+
 class ANN:
     def __init__(self,
                  id,
@@ -275,9 +286,9 @@ class ANN:
         self.chosen_after_train = 0
         self.loss_estimator = ADWIN(delta=self.loss_estimator_delta)
         self.accumulated_loss = 0
-        self.one_class_detector = linear_model.SGDOneClassSVM(random_state=0, shuffle=False, max_iter=1, warm_start=True)
-        self.scaler = StandardScaler()
-        self.logistic_regression = SGDClassifier(loss='log', random_state=None, max_iter=1, shuffle=False, warm_start=True)
+        self.one_class_detector = init_one_class_detector()
+        self.scaler = init_scaler()
+        self.logistic_regression = init_logistic_regression()
         self.naive_bayes = NaiveBayes()
         self.correct_network_selected_count = 0
         self.correct_class_predicted = 0
@@ -698,6 +709,13 @@ class MultiMLP(nn.Module):
             self.create_nn_pool()
         return self
 
+    def reset_one_class_detectors_and_loss_estimators(self):
+        for n in self.train_nets:
+            n.one_class_detector = init_one_class_detector()
+            n.scaler = init_scaler()
+            n.logistic_regression = init_logistic_regression()
+            n.loss_estimator = ADWIN(delta=n.loss_estimator_delta)
+
     @torch.no_grad()
     def add_nn_with_lowest_loss_to_frozen_list(self):
         idx = self.get_train_nn_index_with_lowest_loss()
@@ -867,6 +885,7 @@ class MultiMLP(nn.Module):
                 self.task_detected = True
         if self.task_detected:
             self.add_nn_with_lowest_loss_to_frozen_list()
+            self.reset_one_class_detectors_and_loss_estimators()
 
         if (self.train_task_predictor_at_the_end and
                 self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_ONE_CLASS) and use_instances_for_task_detector_training:
