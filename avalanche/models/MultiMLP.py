@@ -529,7 +529,7 @@ class MultiMLP(nn.Module):
         self.call_predict = False
         self.mb_yy = None
         self.mb_task_id = None
-        self.training_exp = 0
+        self.training_exp = -1
         self.available_nn_id = 0
         self.detected_task_id = 0
         self.accumulated_x = [None]
@@ -917,7 +917,7 @@ class MultiMLP(nn.Module):
             print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(
                 self.training_exp,
                 after_training,
-                self.detected_task_id - 1,
+                self.detected_task_id,
                 list_type,
                 self.total_samples_seen_for_train,
                 self.samples_seen_for_train_after_drift,
