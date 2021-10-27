@@ -672,23 +672,21 @@ class MultiMLP(nn.Module):
                                      'nn_model_file_name': nn_model_file_name})
 
     def clear_frozen_pool(self):
-        if not self.reset_training_pool:
-            for i in range(len(self.frozen_net_module_paths)):
-                save_model(self.frozen_nets[i],
-                           self.frozen_net_module_paths[i]['abstract_model_file_name'],
-                           self.frozen_net_module_paths[i]['nn_model_file_name'])
-                self.frozen_nets[i] = None
-            self.frozen_nets = []
+        for i in range(len(self.frozen_net_module_paths)):
+            save_model(self.frozen_nets[i],
+                       self.frozen_net_module_paths[i]['abstract_model_file_name'],
+                       self.frozen_net_module_paths[i]['nn_model_file_name'])
+            self.frozen_nets[i] = None
+        self.frozen_nets = []
 
     def load_frozen_pool(self):
-        if not self.reset_training_pool:
-            if len(self.frozen_nets) != 0:
-                print('Frozen pool is not empty')
-                return
+        if len(self.frozen_nets) != 0:
+            print('Frozen pool is not empty')
+            return
 
-            for i in range(len(self.frozen_net_module_paths)):
-                self.frozen_nets.append(load_model(self.frozen_net_module_paths[i]['abstract_model_file_name'],
-                                                   self.frozen_net_module_paths[i]['nn_model_file_name']))
+        for i in range(len(self.frozen_net_module_paths)):
+            self.frozen_nets.append(load_model(self.frozen_net_module_paths[i]['abstract_model_file_name'],
+                                               self.frozen_net_module_paths[i]['nn_model_file_name']))
 
     def reset(self):
         if self.reset_training_pool:
@@ -729,10 +727,10 @@ class MultiMLP(nn.Module):
             if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
                 pass
 
+        self.save_best_model_and_append_to_paths(idx)
+
         if self.reset_training_pool:
-            self.frozen_nets.append(self.train_nets[idx])
-        else:
-            self.save_best_model_and_append_to_paths(idx)
+            self.train_nets[idx] = None  # clear chosen net's memory
 
         self.detected_task_id += 1
         self.accumulated_x = None
