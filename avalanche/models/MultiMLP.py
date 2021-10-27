@@ -529,8 +529,9 @@ class MultiMLP(nn.Module):
         self.call_predict = False
         self.mb_yy = None
         self.mb_task_id = None
+        self.training_exp = 0
         self.available_nn_id = 0
-        self.task_id = 0
+        self.detected_task_id = 0
         self.accumulated_x = [None]
         # self.learned_tasks = [0]
         self.task_detected = False
@@ -660,7 +661,7 @@ class MultiMLP(nn.Module):
 
     def save_best_model_and_append_to_paths(self, best_model_idx):
         best_model: ANN = self.train_nets[best_model_idx]
-        model_save_name = str(self.task_id) + '_' + str(best_model.id) + '_' + best_model.model_name
+        model_save_name = str(self.detected_task_id) + '_' + str(best_model.id) + '_' + best_model.model_name
 
         abstract_model_file_name = os.path.join(self.model_dump_dir, model_save_name)
         nn_model_file_name = os.path.join(self.model_dump_dir, model_save_name + '_nn')
@@ -721,7 +722,7 @@ class MultiMLP(nn.Module):
                                                                 self.use_one_class_probas)
             elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
                 nb_y = np.empty((learned_features[0].shape[0],), dtype=np.int64)
-                nb_y.fill(self.task_id)
+                nb_y.fill(self.detected_task_id)
                 self.train_nets[idx].naive_bayes.partial_fit(learned_features[0].cpu().numpy(), nb_y)
             self.train_nets[idx].net.to(self.train_nets[idx].device)   # move the model back to original device
         else:
@@ -733,7 +734,7 @@ class MultiMLP(nn.Module):
         else:
             self.save_best_model_and_append_to_paths(idx)
 
-        self.task_id += 1
+        self.detected_task_id += 1
         self.accumulated_x = None
         self.accumulated_x = [None]
 
@@ -851,9 +852,9 @@ class MultiMLP(nn.Module):
                 c = c_flatten
 
             if self.use_threads:
-                t.append(threading.Thread(target=net_train, args=(self.train_nets[nn_index], xx, r, c, y, self.task_id, use_instances_for_task_detector_training, self.use_one_class_probas,)))
+                t.append(threading.Thread(target=net_train, args=(self.train_nets[nn_index], xx, r, c, y, self.detected_task_id, use_instances_for_task_detector_training, self.use_one_class_probas,)))
             else:
-                self.train_nets[nn_index].train_net(xx, y, c, r, self.task_id, use_instances_for_task_detector_training, self.use_one_class_probas)
+                self.train_nets[nn_index].train_net(xx, y, c, r, self.detected_task_id, use_instances_for_task_detector_training, self.use_one_class_probas)
         if self.use_threads:
             for i in range(len(t)):
                 t[i].start()
@@ -880,9 +881,11 @@ class MultiMLP(nn.Module):
         return self.train_nets[nn_with_lowest_loss].net(
             x if self.train_nets[nn_with_lowest_loss].network_type == NETWORK_TYPE_CNN else x_flatten)
 
-    def print_stats(self, after_eval=False):
+    def print_stats(self, after_training=None):
         if not self.heading_printed:
             print('training_exp,'
+                  'after_training,'
+                  'detected_task_id,'
                   'list_type,'
                   'total_samples_seen_for_train,'
                   'samples_seen_for_train_after_drift,'
@@ -904,15 +907,17 @@ class MultiMLP(nn.Module):
             self.heading_printed = True
 
         # print('---train_nets---', file=self.stats_file)
-        self.print_nn_list(self.train_nets, list_type='train_net')
+        self.print_nn_list(self.train_nets, list_type='train_net', after_training=after_training)
         # print('---frozen_nets---', file=self.stats_file)
         if len(self.frozen_nets) > 0:
-            self.print_nn_list(self.frozen_nets, list_type='frozen_net')
+            self.print_nn_list(self.frozen_nets, list_type='frozen_net', after_training=after_training)
 
-    def print_nn_list(self, l, list_type=None):
+    def print_nn_list(self, l, list_type=None, after_training=None):
         for i in range(len(l)):
-            print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(
-                self.task_id - 1,
+            print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(
+                self.training_exp,
+                after_training,
+                self.detected_task_id - 1,
                 list_type,
                 self.total_samples_seen_for_train,
                 self.samples_seen_for_train_after_drift,

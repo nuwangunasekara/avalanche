@@ -31,9 +31,10 @@ class TrainPoolPlugin(StrategyPlugin):
             pass
         else:
             self.add_to_frozen_pool(strategy)
+        strategy.model.training_exp += 1
 
     def after_training(self, strategy: 'BaseStrategy', **kwargs):
-        strategy.model.print_stats(after_eval=False)
+        strategy.model.print_stats(after_training=True)
 
     def before_eval(self, strategy: 'BaseStrategy', **kwargs):
         strategy.model.load_frozen_pool()
@@ -47,5 +48,5 @@ class TrainPoolPlugin(StrategyPlugin):
         strategy.model.mb_yy = None
 
     def after_eval(self, strategy: 'BaseStrategy', **kwargs):
-        strategy.model.print_stats(after_eval=True)
+        strategy.model.print_stats(after_training=False)
         strategy.model.clear_frozen_pool()
