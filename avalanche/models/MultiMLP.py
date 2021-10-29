@@ -219,7 +219,7 @@ def init_scaler():
 
 
 def init_logistic_regression():
-    return SGDClassifier(loss='log', random_state=None, max_iter=1, shuffle=False, warm_start=True)
+    return SGDClassifier(loss='log', random_state=0, max_iter=1, shuffle=False, warm_start=True)
 
 class ANN:
     def __init__(self,
