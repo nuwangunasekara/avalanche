@@ -789,8 +789,7 @@ class MultiMLP(nn.Module):
         if self.call_predict:
             self.samples_seen_for_test += r
             true_task_id = self.mb_task_id.sum(dim=0).item() // self.mb_task_id.shape[0]
-            if true_task_id < len(self.frozen_nets):
-                self.test_samples_seen_for_learned_tasks += r
+            self.test_samples_seen_for_learned_tasks += r
             final_votes = None
             best_matched_frozen_nn_idx = -1
             weights_for_frozen_nns = None
