@@ -746,6 +746,7 @@ class MultiMLP(nn.Module):
     @torch.no_grad()
     def add_nn_with_lowest_loss_to_frozen_list(self):
         idx = self.get_train_nn_index_with_lowest_loss()
+        self.print_nn_list([self.train_nets[idx]], list_type='train_net', dumped_at='task_detect')
 
         if self.reset_training_pool:
             for i in range(len(self.train_nets)):
@@ -921,10 +922,10 @@ class MultiMLP(nn.Module):
         return self.train_nets[nn_with_lowest_loss].net(
             x if self.train_nets[nn_with_lowest_loss].network_type == NETWORK_TYPE_CNN else x_flatten)
 
-    def print_stats(self, after_training=None):
+    def print_stats_hader(self):
         if not self.heading_printed:
             print('training_exp,'
-                  'after_training,'
+                  'dumped_at,'
                   'detected_task_id,'
                   'list_type,'
                   'total_samples_seen_for_train,'
@@ -946,33 +947,36 @@ class MultiMLP(nn.Module):
                   file=self.stats_file, flush=True)
             self.heading_printed = True
 
+    def print_stats(self, dumped_at=None):
         # print('---train_nets---', file=self.stats_file)
-        self.print_nn_list(self.train_nets, list_type='train_net', after_training=after_training)
+        self.print_nn_list(self.train_nets, list_type='train_net', dumped_at=dumped_at)
         # print('---frozen_nets---', file=self.stats_file)
         if len(self.frozen_nets) > 0:
-            self.print_nn_list(self.frozen_nets, list_type='frozen_net', after_training=after_training)
+            self.print_nn_list(self.frozen_nets, list_type='frozen_net', dumped_at=dumped_at)
 
-    def print_nn_list(self, l, list_type=None, after_training=None):
-        for i in range(len(l)):
+    def print_nn_list(self, nn_l, list_type=None, dumped_at=None):
+        self.print_stats_hader()
+
+        for i in range(len(nn_l)):
             print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(
                 self.training_exp,
-                after_training,
+                dumped_at,
                 self.detected_task_id,
                 list_type,
                 self.total_samples_seen_for_train,
                 self.samples_seen_for_train_after_drift,
-                l[i].model_name,
-                l[i].id,
-                l[i].samples_seen_at_train,
-                l[i].trained_count,
-                0 if l[i].samples_seen_at_train == 0 else l[i].accumulated_loss / l[i].samples_seen_at_train,
-                l[i].loss_estimator.estimation,
-                l[i].chosen_after_train,
+                nn_l[i].model_name,
+                nn_l[i].id,
+                nn_l[i].samples_seen_at_train,
+                nn_l[i].trained_count,
+                0 if nn_l[i].samples_seen_at_train == 0 else nn_l[i].accumulated_loss / nn_l[i].samples_seen_at_train,
+                nn_l[i].loss_estimator.estimation,
+                nn_l[i].chosen_after_train,
                 self.samples_seen_for_test,
                 self.test_samples_seen_for_learned_tasks,
-                l[i].chosen_for_test,
-                l[i].correct_network_selected_count / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0,
+                nn_l[i].chosen_for_test,
+                nn_l[i].correct_network_selected_count / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0,
                 self.correct_network_selected_count / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0,
-                l[i].correct_class_predicted / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0,
+                nn_l[i].correct_class_predicted / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0,
                 self.correct_class_predicted / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0
             ), file=self.stats_file, flush=True)
