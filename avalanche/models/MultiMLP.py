@@ -949,7 +949,7 @@ class MultiMLP(nn.Module):
                   'this_chosen_for_test,'
                   'this_correctly_predicted_task_ids_test,'
                   'correct_network_selected,'
-                  'this_self.correct_class_predicted,'
+                  'this_correct_class_predicted,'
                   'correct_class_predicted',
                   file=self.stats_file, flush=True)
             self.heading_printed = True
