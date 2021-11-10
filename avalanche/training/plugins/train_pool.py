@@ -14,9 +14,11 @@ class TrainPoolPlugin(StrategyPlugin):
     def before_forward(self, strategy: 'BaseStrategy', **kwargs):
         strategy.model.call_predict = False
         strategy.model.mb_yy = strategy.mb_y
+        strategy.model.mb_task_id = strategy.mb_task_id
 
     def after_forward(self, strategy: 'BaseStrategy', **kwargs):
         strategy.model.mb_yy = None
+        strategy.model.mb_task_id = None
 
     def before_backward(self, strategy: 'BaseStrategy', **kwargs):
         pass
@@ -24,7 +26,7 @@ class TrainPoolPlugin(StrategyPlugin):
     @staticmethod
     def add_to_frozen_pool(strategy: 'BaseStrategy'):
         strategy.model.add_nn_with_lowest_loss_to_frozen_list()
-        strategy.model.reset_one_class_detectors_and_loss_estimators()
+        strategy.model.reset_one_class_detectors_and_loss_estimators_seen_task_ids()
         strategy.model.reset()
 
     def after_training_exp(self, strategy: 'BaseStrategy', **kwargs):
@@ -47,6 +49,7 @@ class TrainPoolPlugin(StrategyPlugin):
 
     def after_eval_forward(self, strategy: 'BaseStrategy', **kwargs):
         strategy.model.mb_yy = None
+        strategy.model.mb_task_id = None
 
     def after_eval(self, strategy: 'BaseStrategy', **kwargs):
         strategy.model.print_stats(dumped_at='after_eval')

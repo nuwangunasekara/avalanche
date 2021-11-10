@@ -267,11 +267,12 @@ class ANN:
         self.scaler = None
         self.logistic_regression = None
         self.naive_bayes = None
-        self.correct_network_selected_count = 0
         self.correct_class_predicted = 0
         self.input_dimensions = 0
         self.x_shape = None
         self.task_detected = False
+        self.seen_task_ids_train = {}
+        self.seen_task_ids_test = {}
         self.init_values()
 
     def init_values(self):
@@ -290,11 +291,12 @@ class ANN:
         self.scaler = init_scaler()
         self.logistic_regression = init_logistic_regression()
         self.naive_bayes = NaiveBayes()
-        self.correct_network_selected_count = 0
         self.correct_class_predicted = 0
         self.input_dimensions = 0
         self.x_shape = None
         self.task_detected = False
+        self.seen_task_ids_train = {}
+        self.seen_task_ids_test = {}
 
         if self.hidden_layers_for_MLP is None:
             pass
@@ -362,13 +364,18 @@ class ANN:
                                    self.scaler)
         self.one_class_detector_fit_called = True
 
-    def train_net(self, x, y, c, r, task_id, use_instances_for_task_detector_training, use_one_class_probas):
+    def train_net(self, x, y, c, r, true_task_id, detected_task_id, use_instances_for_task_detector_training, use_one_class_probas):
         if self.net is None:
             self.input_dimensions = c
             self.x_shape = deepcopy(x.shape)
             self.initialize_network()
 
         self.samples_seen_at_train += r
+
+        if self.seen_task_ids_train.get(true_task_id) is None:
+            self.seen_task_ids_train[true_task_id] = r
+        else:
+            self.seen_task_ids_train[true_task_id] += r
 
         x = x.to(self.device)
         y = y.to(self.device)
@@ -388,7 +395,7 @@ class ANN:
                 self.train_one_class_classifier(learned_features[0].cpu(), use_one_class_probas)
             elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
                 nb_y = np.empty((learned_features[0].shape[0],), dtype=np.int64)
-                nb_y.fill(task_id)
+                nb_y.fill(detected_task_id)
                 self.naive_bayes.partial_fit(learned_features[0].cpu().numpy(), nb_y)
 
         # backward propagation
@@ -440,8 +447,8 @@ def flatten_dimensions(mb_x):
     return c, x.view(x.size(0), c)
 
 
-def net_train(net: ANN, x: np.ndarray, r, c, y: np.ndarray, task_id, use_instances_for_task_detector_training, use_one_class_probas):
-    net.train_net(x, y, c, r, task_id, use_instances_for_task_detector_training, use_one_class_probas)
+def net_train(net: ANN, x: np.ndarray, r, c, y: np.ndarray, true_task_id, detected_task_id, use_instances_for_task_detector_training, use_one_class_probas):
+    net.train_net(x, y, c, r, true_task_id, detected_task_id, use_instances_for_task_detector_training, use_one_class_probas)
 
 
 def save_model(best_model: ANN, abstract_model_file_name, nn_model_file_name, preserve_net=False):
@@ -736,12 +743,14 @@ class MultiMLP(nn.Module):
             self.create_nn_pool()
         return self
 
-    def reset_one_class_detectors_and_loss_estimators(self):
+    def reset_one_class_detectors_and_loss_estimators_seen_task_ids(self):
         for n in self.train_nets:
             n.one_class_detector = init_one_class_detector()
             n.scaler = init_scaler()
             n.logistic_regression = init_logistic_regression()
             n.loss_estimator = ADWIN(delta=n.loss_estimator_delta)
+            n.seen_task_ids_train = {}
+            n.seen_task_ids_test = {}
 
     @torch.no_grad()
     def add_nn_with_lowest_loss_to_frozen_list(self):
@@ -786,10 +795,10 @@ class MultiMLP(nn.Module):
         r = x.shape[0]
         c_flatten, x_flatten = flatten_dimensions(x)
         y = self.mb_yy
+        true_task_id = self.mb_task_id.sum(dim=0).item() // self.mb_task_id.shape[0]
 
         if self.call_predict:
             self.samples_seen_for_test += r
-            true_task_id = self.mb_task_id.sum(dim=0).item() // self.mb_task_id.shape[0]
             self.test_samples_seen_for_learned_tasks += r
             final_votes = None
             best_matched_frozen_nn_idx = -1
@@ -809,17 +818,18 @@ class MultiMLP(nn.Module):
                     best_matched_frozen_nn_idx = random.randrange(0, len(self.frozen_nets))
                 elif self.task_detector_type == PREDICT_METHOD_TASK_ID_KNOWN:
                     best_matched_frozen_nn_idx = true_task_id
-                    if best_matched_frozen_nn_idx >= len(self.frozen_nets):
-                        best_matched_frozen_nn_idx = len(self.frozen_nets) - 1
                 elif self.task_detector_type == PREDICT_METHOD_NW_CONFIDENCE:
                     best_matched_frozen_nn_idx = self.get_network_with_best_confidence(x, x_flatten)
 
-                if best_matched_frozen_nn_idx == true_task_id:
-                    self.correct_network_selected_count += r
-                    self.frozen_nets[best_matched_frozen_nn_idx].correct_network_selected_count += r
-
                 if 0 <= best_matched_frozen_nn_idx < len(self.frozen_nets):
                     self.frozen_nets[best_matched_frozen_nn_idx].chosen_for_test += r
+
+                    if self.frozen_nets[best_matched_frozen_nn_idx].seen_task_ids_train.get(true_task_id) is not None:
+                        self.correct_network_selected_count += r
+                        if self.frozen_nets[best_matched_frozen_nn_idx].seen_task_ids_test.get(true_task_id) is None:
+                            self.frozen_nets[best_matched_frozen_nn_idx].seen_task_ids_test[true_task_id] = r
+                        else:
+                            self.frozen_nets[best_matched_frozen_nn_idx].seen_task_ids_test[true_task_id] += r
                 else:
                     if len(self.frozen_nets) >= 0:
                         print('Index error for best_matched_frozen_nn_index ({})'.format(best_matched_frozen_nn_idx))
@@ -892,9 +902,9 @@ class MultiMLP(nn.Module):
                 c = c_flatten
 
             if self.use_threads:
-                t.append(threading.Thread(target=net_train, args=(self.train_nets[nn_index], xx, r, c, y, self.detected_task_id, use_instances_for_task_detector_training, self.use_one_class_probas,)))
+                t.append(threading.Thread(target=net_train, args=(self.train_nets[nn_index], xx, r, c, y, true_task_id, self.detected_task_id, use_instances_for_task_detector_training, self.use_one_class_probas,)))
             else:
-                self.train_nets[nn_index].train_net(xx, y, c, r, self.detected_task_id, use_instances_for_task_detector_training, self.use_one_class_probas)
+                self.train_nets[nn_index].train_net(xx, y, c, r, true_task_id, self.detected_task_id, use_instances_for_task_detector_training, self.use_one_class_probas)
         if self.use_threads:
             for i in range(len(t)):
                 t[i].start()
@@ -909,7 +919,7 @@ class MultiMLP(nn.Module):
                 self.task_detected = True
         if self.task_detected:
             self.add_nn_with_lowest_loss_to_frozen_list()
-            self.reset_one_class_detectors_and_loss_estimators()
+            self.reset_one_class_detectors_and_loss_estimators_seen_task_ids()
 
         if (self.train_task_predictor_at_the_end and
                 self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_ONE_CLASS) and use_instances_for_task_detector_training:
@@ -940,7 +950,7 @@ class MultiMLP(nn.Module):
                   'total_samples_seen_for_test,'
                   'test_samples_seen_for_learned_tasks,'
                   'this_chosen_for_test,'
-                  'this_correct_network_selected,'
+                  'this_seen_task_ids_test,'
                   'correct_network_selected,'
                   'this_acc,'
                   'acc',
@@ -958,7 +968,7 @@ class MultiMLP(nn.Module):
         self.print_stats_hader()
 
         for i in range(len(nn_l)):
-            print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(
+            print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},"{}",{},{},{}'.format(
                 self.training_exp,
                 dumped_at,
                 self.detected_task_id,
@@ -975,7 +985,7 @@ class MultiMLP(nn.Module):
                 self.samples_seen_for_test,
                 self.test_samples_seen_for_learned_tasks,
                 nn_l[i].chosen_for_test,
-                nn_l[i].correct_network_selected_count / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0,
+                nn_l[i].seen_task_ids_test,
                 self.correct_network_selected_count / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0,
                 nn_l[i].correct_class_predicted / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0,
                 self.correct_class_predicted / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0
