@@ -141,6 +141,7 @@ for d in datasets:
         last_d = d
         ax.set_xticks(
             np.arange(len(df_all.query('dataset .str.contains("' + d + '")', engine='python')['eval_exp'].unique())))
+        ax.set_ylim(0.0, 1.0)
         axes.append(ax)
         for s in strategies:
             for sub_s in sub_strategies:
@@ -168,8 +169,8 @@ for d in datasets:
                 # p_df_avg_eval_acc_for_exp = p_df.groupby(['training_exp'])['eval_accuracy'].mean()
                 p_df_avg_eval_acc_for_exp = p_df.groupby(['eval_exp'])['eval_accuracy'].mean()
 
-
                 ax.plot(exps, p_df_avg_eval_acc_for_exp, label=label, color=color, linestyle=line_type, marker=".")
+                ax.plot(exps, np.ones(len(exps)) * p_df_avg_eval_acc_for_exp.mean(), label=label+'_avg', color=color, linestyle='dotted')
         col += 1
     rows += 1
 axes[-len(experiences)].legend(ncol=6, bbox_to_anchor=(0.0, -0.2), loc="upper left")
