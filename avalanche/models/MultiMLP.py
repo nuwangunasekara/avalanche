@@ -272,7 +272,7 @@ class ANN:
         self.x_shape = None
         self.task_detected = False
         self.seen_task_ids_train = {}
-        self.seen_task_ids_test = {}
+        self.correctly_predicted_task_ids_test = {}
         self.init_values()
 
     def init_values(self):
@@ -296,7 +296,7 @@ class ANN:
         self.x_shape = None
         self.task_detected = False
         self.seen_task_ids_train = {}
-        self.seen_task_ids_test = {}
+        self.correctly_predicted_task_ids_test = {}
 
         if self.hidden_layers_for_MLP is None:
             pass
@@ -750,7 +750,7 @@ class MultiMLP(nn.Module):
             n.logistic_regression = init_logistic_regression()
             n.loss_estimator = ADWIN(delta=n.loss_estimator_delta)
             n.seen_task_ids_train = {}
-            n.seen_task_ids_test = {}
+            n.correctly_predicted_task_ids_test = {}
 
     @torch.no_grad()
     def add_nn_with_lowest_loss_to_frozen_list(self):
@@ -826,10 +826,10 @@ class MultiMLP(nn.Module):
 
                     if self.frozen_nets[best_matched_frozen_nn_idx].seen_task_ids_train.get(true_task_id) is not None:
                         self.correct_network_selected_count += r
-                        if self.frozen_nets[best_matched_frozen_nn_idx].seen_task_ids_test.get(true_task_id) is None:
-                            self.frozen_nets[best_matched_frozen_nn_idx].seen_task_ids_test[true_task_id] = r
+                        if self.frozen_nets[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test.get(true_task_id) is None:
+                            self.frozen_nets[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test[true_task_id] = r
                         else:
-                            self.frozen_nets[best_matched_frozen_nn_idx].seen_task_ids_test[true_task_id] += r
+                            self.frozen_nets[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test[true_task_id] += r
                 else:
                     if len(self.frozen_nets) >= 0:
                         print('Index error for best_matched_frozen_nn_index ({})'.format(best_matched_frozen_nn_idx))
@@ -950,7 +950,7 @@ class MultiMLP(nn.Module):
                   'total_samples_seen_for_test,'
                   'test_samples_seen_for_learned_tasks,'
                   'this_chosen_for_test,'
-                  'this_seen_task_ids_test,'
+                  'this_correctly_predicted_task_ids_test,'
                   'correct_network_selected,'
                   'this_acc,'
                   'acc',
@@ -985,7 +985,7 @@ class MultiMLP(nn.Module):
                 self.samples_seen_for_test,
                 self.test_samples_seen_for_learned_tasks,
                 nn_l[i].chosen_for_test,
-                nn_l[i].seen_task_ids_test,
+                nn_l[i].correctly_predicted_task_ids_test,
                 self.correct_network_selected_count / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0,
                 nn_l[i].correct_class_predicted / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0,
                 self.correct_class_predicted / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0
