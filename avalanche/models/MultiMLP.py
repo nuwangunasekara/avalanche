@@ -530,7 +530,6 @@ class MultiMLP(nn.Module):
         self.samples_seen_for_train_after_drift = 0
         self.total_samples_seen_for_train = 0
         self.samples_seen_for_test = 0
-        self.test_samples_seen_for_learned_tasks = 0
         self.correct_network_selected_count = 0
         self.correct_class_predicted = 0
         self.call_predict = False
@@ -799,7 +798,6 @@ class MultiMLP(nn.Module):
 
         if self.call_predict:
             self.samples_seen_for_test += r
-            self.test_samples_seen_for_learned_tasks += r
             final_votes = None
             best_matched_frozen_nn_idx = -1
             weights_for_frozen_nns = None
@@ -948,7 +946,6 @@ class MultiMLP(nn.Module):
                   'this_estimated_loss,'
                   'this_chosen_after_train,'
                   'total_samples_seen_for_test,'
-                  'test_samples_seen_for_learned_tasks,'
                   'this_chosen_for_test,'
                   'this_correctly_predicted_task_ids_test,'
                   'correct_network_selected,'
@@ -968,7 +965,7 @@ class MultiMLP(nn.Module):
         self.print_stats_hader()
 
         for i in range(len(nn_l)):
-            print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},"{}",{},{},{}'.format(
+            print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},"{}",{},{},{}'.format(
                 self.training_exp,
                 dumped_at,
                 self.detected_task_id,
@@ -983,10 +980,9 @@ class MultiMLP(nn.Module):
                 nn_l[i].loss_estimator.estimation,
                 nn_l[i].chosen_after_train,
                 self.samples_seen_for_test,
-                self.test_samples_seen_for_learned_tasks,
                 nn_l[i].chosen_for_test,
                 nn_l[i].correctly_predicted_task_ids_test,
-                self.correct_network_selected_count / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0,
-                nn_l[i].correct_class_predicted / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0,
-                self.correct_class_predicted / self.test_samples_seen_for_learned_tasks * 100 if self.test_samples_seen_for_learned_tasks != 0 else 0.0
+                self.correct_network_selected_count,
+                nn_l[i].correct_class_predicted,
+                self.correct_class_predicted
             ), file=self.stats_file, flush=True)
