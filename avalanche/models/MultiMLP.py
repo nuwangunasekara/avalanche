@@ -237,6 +237,7 @@ class ANN:
                  train_task_predictor_at_the_end=True):
         # configuration variables (which has the same name as init parameters)
         self.id = id
+        self.frozen_id = None
         self.model_name = None
         self.learning_rate = learning_rate
         self.network_type = network_type
@@ -535,7 +536,7 @@ class MultiMLP(nn.Module):
         self.call_predict = False
         self.mb_yy = None
         self.mb_task_id = None
-        self.training_exp = -1
+        self.training_exp = 0
         self.available_nn_id = 0
         self.detected_task_id = 0
         self.accumulated_x = [None]
@@ -705,12 +706,15 @@ class MultiMLP(nn.Module):
 
     def save_best_model_and_append_to_paths(self, best_model_idx):
         best_model: ANN = self.train_nets[best_model_idx]
+        frozen_id = str(self.training_exp) + '_' + str(self.detected_task_id) + '_' + str(best_model.id)
         model_save_name = str(self.detected_task_id) + '_' + str(best_model.id) + '_' + best_model.model_name
 
         abstract_model_file_name = os.path.join(self.model_dump_dir, model_save_name)
         nn_model_file_name = os.path.join(self.model_dump_dir, model_save_name + '_nn')
 
+        best_model.frozen_id = frozen_id
         save_model(best_model, abstract_model_file_name, nn_model_file_name, preserve_net=True)
+        best_model.frozen_id = None
 
         self.frozen_net_module_paths.append({'abstract_model_file_name': abstract_model_file_name,
                                      'nn_model_file_name': nn_model_file_name})
@@ -940,6 +944,7 @@ class MultiMLP(nn.Module):
                   'samples_seen_for_train_after_drift,'
                   'this_name,'
                   'this_id,'
+                  'this_frozen_id,'
                   'this_samples_seen_at_train,'
                   'this_trained_count,'
                   'this_avg_loss,'
@@ -965,8 +970,8 @@ class MultiMLP(nn.Module):
         self.print_stats_hader()
 
         for i in range(len(nn_l)):
-            print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},"{}",{},{},{}'.format(
-                self.training_exp,
+            print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},"{}",{},{},{}'.format(
+                self.training_exp - 1 if dumped_at == 'after_eval' else self.training_exp,
                 dumped_at,
                 self.detected_task_id,
                 list_type,
@@ -974,6 +979,7 @@ class MultiMLP(nn.Module):
                 self.samples_seen_for_train_after_drift,
                 nn_l[i].model_name,
                 nn_l[i].id,
+                nn_l[i].frozen_id,
                 nn_l[i].samples_seen_at_train,
                 nn_l[i].trained_count,
                 0 if nn_l[i].samples_seen_at_train == 0 else nn_l[i].accumulated_loss / nn_l[i].samples_seen_at_train,
