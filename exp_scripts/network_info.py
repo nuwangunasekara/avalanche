@@ -44,6 +44,17 @@ def get_eval_csv_file(d):
     return csv_files[0] if len(csv_files) > 0 else None
 
 
+def get_experiment_dir():
+    output = []
+    if len(output) == 0:
+        command = subprocess.Popen("realpath " + args.resultsDir,
+                                   shell=True, stdout=subprocess.PIPE)
+        for line in command.stdout.readlines():
+            output.append(line.decode("utf-8").replace('\n', ''))
+    print('Experiment directory ', output)
+    return output[0] if len(output) > 0 else None
+
+
 def plot_task_detection(csv_file, d, ax):
     df = pd.read_csv(csv_file)
 
@@ -154,12 +165,14 @@ def plot_fozen_nw_stats(csv_file, eval_csv_file, d, ax):
 
 # Start of the main
 def main():
+    exp = get_experiment_dir().split('_')[-1].split('/')[0]
     fig_1 = plt.figure(constrained_layout=False, figsize=(18, 10))
-    fig_1.suptitle('task detection (at train)')
+    fig_1.suptitle('task detection (at train) experiment# ' + exp)
     fig_2 = plt.figure(constrained_layout=False, figsize=(18, 10))
-    fig_2.suptitle('correct nw selected Vs. correct class detected (at eval)')
+    fig_2.suptitle('correct nw selected Vs. correct class detected (at eval) experiment# ' + exp)
     fig_3 = plt.figure(constrained_layout=False, figsize=(18, 10))
-    fig_3.suptitle('correctly predicted task_id % by each frozen nw, after training on each task (at eval)\n (trained task, frozen at task id_ detected id_nw id)')
+    fig_3.suptitle('correct task_id predicted % by each frozen nw, after training on each task (at eval) experiment# '
+                   + exp + '\n (trained task, frozen at task id_ detected id_nw id)')
     gs_1 = fig_1.add_gridspec(len(datasets), 1)
     gs_2 = fig_2.add_gridspec(len(datasets), 1)
     gs_3 = fig_2.add_gridspec(len(datasets), 1)
@@ -182,7 +195,9 @@ def main():
             rows += 1
 
     mplcursors.cursor(hover=True)
-    plt.savefig(args.resultsDir+'/TaskDetection.png')
+    fig_1.savefig(args.resultsDir+'/TaskDetection_' + exp + '.png')
+    fig_1.savefig(args.resultsDir+'/CorrectNWSelected_' + exp + '.png')
+    fig_1.savefig(args.resultsDir+'/CorrectTaskIDPredicted_' + exp + '.png')
     plt.show()
 
 
