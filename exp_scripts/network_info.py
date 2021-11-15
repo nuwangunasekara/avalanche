@@ -104,10 +104,16 @@ def plot_fozen_nw_stats(d, ax):
         df_frozen[t_id] = 0
         col_names_2.append(t_id)
         col_names_3.append(t_id)
+    no_of_instances_per_each_task = df[df['total_samples_seen_for_test'] != 0]['total_samples_seen_for_test'].min()
+    # print('min:', c)
     for i in df_frozen.index.values:
+        e = df_frozen.at[i, 'training_exp']
         t_ids = ast.literal_eval(df_frozen.at[i, 'this_correctly_predicted_task_ids_test'])
         for t, val in t_ids.items():
-            df_frozen.at[i, str(t)] = val
+            # print(e, t, val)
+            if t <= e:
+                total_instances_seen_for_task_t_at_x = ((e - t) + 1) * no_of_instances_per_each_task
+                df_frozen.at[i, str(t)] = val/total_instances_seen_for_task_t_at_x * 100 if total_instances_seen_for_task_t_at_x != 0 else 0.0
 
     ax.set_ylabel(d)
     pd_f = df_frozen[df_frozen['list_type'] == 'frozen_net']
@@ -119,6 +125,14 @@ def plot_fozen_nw_stats(d, ax):
         label.set_ha('right')
     ax.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
 
+    last_t_id = df['training_exp'].max()
+    frozen_nw_count_at_end = df.query(
+        'dumped_at.str.contains("after_eval") and list_type.str.contains("frozen_net") and training_exp==' + str(
+            last_t_id),
+        engine='python')['training_exp'].count()
+    y_max = np.max(pd_f.max())
+    ax.annotate('fozen_nets_at the end=' + str(frozen_nw_count_at_end), (0, y_max))
+
 
 # Start of the main
 fig_1 = plt.figure(constrained_layout=False, figsize=(18, 10))
@@ -126,7 +140,7 @@ fig_1.suptitle('task detection (at train)')
 fig_2 = plt.figure(constrained_layout=False, figsize=(18, 10))
 fig_2.suptitle('correct nw selected Vs. correct class detected (at eval)')
 fig_3 = plt.figure(constrained_layout=False, figsize=(18, 10))
-fig_3.suptitle('correctly predicted task_id by each frozen nw after training on each task (at eval)\n (trained task, frozen at task id_ detected id_nw id)')
+fig_3.suptitle('correctly predicted task_id % by each frozen nw, after training on each task (at eval)\n (trained task, frozen at task id_ detected id_nw id)')
 gs_1 = fig_1.add_gridspec(len(datasets), 1)
 gs_2 = fig_2.add_gridspec(len(datasets), 1)
 gs_3 = fig_2.add_gridspec(len(datasets), 1)
