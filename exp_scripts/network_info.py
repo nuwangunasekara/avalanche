@@ -16,7 +16,8 @@ args = parser.parse_args()
 # pd.set_option('max_rows', None)
 # pd.set_option('display.width', 1000)
 
-csv_dir = os.path.join(args.resultsDir,  'logs/exp_logs/')
+exp_log_dir = os.path.join(args.resultsDir, 'logs/exp_logs/')
+csv_dir = os.path.join(args.resultsDir, 'logs/csv_data/')
 
 datasets = ['CORe50', 'RotatedCIFAR10', 'RotatedMNIST']
 
@@ -24,15 +25,26 @@ datasets = ['CORe50', 'RotatedCIFAR10', 'RotatedMNIST']
 def get_net_csv_file(d):
     csv_files = []
     if len(csv_files) == 0:
-        command = subprocess.Popen("find " + csv_dir + " -iname " + d + "*Nets.csv",
+        command = subprocess.Popen("find " + exp_log_dir + " -iname " + d + "*Nets.csv",
                                    shell=True, stdout=subprocess.PIPE)
         for line in command.stdout.readlines():
             csv_files.append(line.decode("utf-8").replace('\n', ''))
-    print('csv_files', csv_files)
+    print('Net csv_files', csv_files)
     return csv_files[0] if len(csv_files) > 0 else None
 
 
-def plot_task_detection(d, ax):
+def get_eval_csv_file(d):
+    csv_files = []
+    if len(csv_files) == 0:
+        command = subprocess.Popen("find " + csv_dir + " -iname eval_results.csv |grep " + d,
+                                   shell=True, stdout=subprocess.PIPE)
+        for line in command.stdout.readlines():
+            csv_files.append(line.decode("utf-8").replace('\n', ''))
+    print('eval csv_files', csv_files)
+    return csv_files[0] if len(csv_files) > 0 else None
+
+
+def plot_task_detection(csv_file, d, ax):
     df = pd.read_csv(csv_file)
 
     ax.set_ylabel('task_id (' + d + ')')
@@ -55,7 +67,7 @@ def plot_task_detection(d, ax):
     ax.legend()
 
 
-def plot_network_selection(d, ax):
+def plot_network_selection(csv_file, excel_writer, d, ax):
     columns = ['training_exp', 'dumped_at', 'detected_task_id', 'list_type', 'this_name', 'this_frozen_id', 'this_id', 'this_correctly_predicted_task_ids_test', 'correct_network_selected', 'correct_class_predicted', 'total_samples_seen_for_test']
 
     df = pd.read_csv(csv_file)
@@ -86,7 +98,7 @@ def plot_network_selection(d, ax):
     ax.legend()
 
 
-def plot_fozen_nw_stats(d, ax):
+def plot_fozen_nw_stats(csv_file, eval_csv_file, d, ax):
     columns = ['training_exp', 'dumped_at', 'detected_task_id', 'list_type', 'this_name', 'this_frozen_id', 'this_id', 'this_correctly_predicted_task_ids_test', 'correct_network_selected', 'correct_class_predicted', 'total_samples_seen_for_test']
 
     df = pd.read_csv(csv_file)
@@ -131,34 +143,47 @@ def plot_fozen_nw_stats(d, ax):
             last_t_id),
         engine='python')['training_exp'].count()
     y_max = np.max(pd_f.max())
-    ax.annotate('fozen_nets_at the end=' + str(frozen_nw_count_at_end), (0, y_max))
+
+    df_eval = pd.read_csv(eval_csv_file)
+    avg_acc_after_last = round(df_eval[df_eval['training_exp'] == last_t_id]['eval_accuracy'].mean() * 100, 2)
+    df_eval = df_eval[df_eval['training_exp'] == last_t_id ]
+    df_eval[df_eval['forgetting'] != 0]
+    avg_forgetting_after_last = round(df_eval['forgetting'].mean(), 2)
+    ax.annotate('avg acc after last ' + str( avg_acc_after_last) + '%, avg forgetting after last ' + str( avg_forgetting_after_last) + ', frozen nets at the end=' + str(frozen_nw_count_at_end), (0, y_max))
 
 
 # Start of the main
-fig_1 = plt.figure(constrained_layout=False, figsize=(18, 10))
-fig_1.suptitle('task detection (at train)')
-fig_2 = plt.figure(constrained_layout=False, figsize=(18, 10))
-fig_2.suptitle('correct nw selected Vs. correct class detected (at eval)')
-fig_3 = plt.figure(constrained_layout=False, figsize=(18, 10))
-fig_3.suptitle('correctly predicted task_id % by each frozen nw, after training on each task (at eval)\n (trained task, frozen at task id_ detected id_nw id)')
-gs_1 = fig_1.add_gridspec(len(datasets), 1)
-gs_2 = fig_2.add_gridspec(len(datasets), 1)
-gs_3 = fig_2.add_gridspec(len(datasets), 1)
-rows = 0
-cols = 0
-with pd.ExcelWriter(args.resultsDir + '/NetworkInfo.xlsx') as excel_writer:
-    for d_name in datasets:
-        csv_file = get_net_csv_file(d_name)
-        if csv_file is None:
-            continue
-        ax_1 = fig_1.add_subplot(gs_1[rows, cols], label=d_name)
-        ax_2 = fig_2.add_subplot(gs_2[rows, cols], label=d_name)
-        ax_3 = fig_3.add_subplot(gs_3[rows, cols], label=d_name)
-        plot_task_detection(d_name, ax_1)
-        plot_network_selection(d_name, ax_2)
-        plot_fozen_nw_stats(d_name, ax_3)
-        rows += 1
+def main():
+    fig_1 = plt.figure(constrained_layout=False, figsize=(18, 10))
+    fig_1.suptitle('task detection (at train)')
+    fig_2 = plt.figure(constrained_layout=False, figsize=(18, 10))
+    fig_2.suptitle('correct nw selected Vs. correct class detected (at eval)')
+    fig_3 = plt.figure(constrained_layout=False, figsize=(18, 10))
+    fig_3.suptitle('correctly predicted task_id % by each frozen nw, after training on each task (at eval)\n (trained task, frozen at task id_ detected id_nw id)')
+    gs_1 = fig_1.add_gridspec(len(datasets), 1)
+    gs_2 = fig_2.add_gridspec(len(datasets), 1)
+    gs_3 = fig_2.add_gridspec(len(datasets), 1)
+    rows = 0
+    cols = 0
+    with pd.ExcelWriter(args.resultsDir + '/NetworkInfo.xlsx') as excel_writer:
+        for d_name in datasets:
+            net_csv_file = get_net_csv_file(d_name)
+            if net_csv_file is None:
+                continue
 
-mplcursors.cursor(hover=True)
-plt.savefig(args.resultsDir+'/TaskDetection.png')
-plt.show()
+            eval_csv_file = get_eval_csv_file(d_name)
+
+            ax_1 = fig_1.add_subplot(gs_1[rows, cols], label=d_name)
+            ax_2 = fig_2.add_subplot(gs_2[rows, cols], label=d_name)
+            ax_3 = fig_3.add_subplot(gs_3[rows, cols], label=d_name)
+            plot_task_detection(net_csv_file, d_name, ax_1)
+            plot_network_selection(net_csv_file, excel_writer, d_name, ax_2)
+            plot_fozen_nw_stats(net_csv_file, eval_csv_file, d_name, ax_3)
+            rows += 1
+
+    mplcursors.cursor(hover=True)
+    plt.savefig(args.resultsDir+'/TaskDetection.png')
+    plt.show()
+
+
+main()
