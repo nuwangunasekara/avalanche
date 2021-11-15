@@ -178,7 +178,7 @@ def main():
     gs_3 = fig_2.add_gridspec(len(datasets), 1)
     rows = 0
     cols = 0
-    with pd.ExcelWriter(args.resultsDir + '/NetworkInfo.xlsx') as excel_writer:
+    with pd.ExcelWriter(args.resultsDir + '/NW_used_for_prediction_'+exp+'.xlsx') as excel_writer:
         for d_name in datasets:
             net_csv_file = get_net_csv_file(d_name)
             if net_csv_file is None:
@@ -196,8 +196,8 @@ def main():
 
     mplcursors.cursor(hover=True)
     fig_1.savefig(args.resultsDir+'/TaskDetection_' + exp + '.png')
-    fig_1.savefig(args.resultsDir+'/CorrectNWSelected_' + exp + '.png')
-    fig_1.savefig(args.resultsDir+'/CorrectTaskIDPredicted_' + exp + '.png')
+    fig_2.savefig(args.resultsDir+'/CorrectNWSelected_' + exp + '.png')
+    fig_3.savefig(args.resultsDir+'/CorrectTaskIDPredicted_' + exp + '.png')
     plt.show()
 
 
