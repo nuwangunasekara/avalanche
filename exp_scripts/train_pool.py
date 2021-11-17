@@ -181,7 +181,8 @@ def main(args):
             reset_training_pool=args.reset_training_pool,
             use_one_class_probas=args.use_one_class_probas,
             use_weights_from_task_detectors=args.use_weights_from_task_detectors,
-            auto_detect_tasks=args.auto_detect_tasks)
+            auto_detect_tasks=args.auto_detect_tasks,
+            n_experiences=scenario.n_experiences)
         optimizer = None
 
     criterion = torch.nn.CrossEntropyLoss()
