@@ -79,7 +79,11 @@ def plot_task_detection(csv_file, d, ax):
 
 
 def plot_network_selection(csv_file, excel_writer, d, ax):
-    columns = ['training_exp', 'dumped_at', 'detected_task_id', 'list_type', 'this_name', 'this_frozen_id', 'this_id', 'this_correctly_predicted_task_ids_test', 'correct_network_selected', 'correct_class_predicted', 'total_samples_seen_for_test']
+    columns = [
+        'training_exp', 'dumped_at', 'detected_task_id', 'list_type', 'this_name', 'this_frozen_id', 'this_id',
+        'samples_per_each_task_at_train', 'this_seen_task_ids_train',
+        'this_correctly_predicted_task_ids_test', 'correct_network_selected', 'correct_class_predicted', 'total_samples_seen_for_test',
+        'this_correctly_predicted_task_ids_test_at_last', 'this_correctly_predicted_task_ids_probas_test_at_last', 'correct_network_selected_count_at_last', 'instances_per_task_at_last']
 
     df = pd.read_csv(csv_file)
     ax.set_ylabel(d)
@@ -109,7 +113,7 @@ def plot_network_selection(csv_file, excel_writer, d, ax):
     ax.legend()
 
 
-def plot_fozen_nw_stats(csv_file, eval_csv_file, d, ax):
+def plot_fozen_nw_stats(csv_file, eval_csv_file, excel_writer, d, ax):
     columns = ['training_exp', 'dumped_at', 'detected_task_id', 'list_type', 'this_name', 'this_frozen_id', 'this_id', 'this_correctly_predicted_task_ids_test', 'correct_network_selected', 'correct_class_predicted', 'total_samples_seen_for_test']
 
     df = pd.read_csv(csv_file)
@@ -149,10 +153,17 @@ def plot_fozen_nw_stats(csv_file, eval_csv_file, d, ax):
     ax.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
 
     last_t_id = df['training_exp'].max()
-    frozen_nw_count_at_end = df.query(
+    df_frozen_nw_at_end = df.query(
         'dumped_at.str.contains("after_eval") and list_type.str.contains("frozen_net") and training_exp==' + str(
             last_t_id),
-        engine='python')['training_exp'].count()
+        engine='python')
+    frozen_nw_count_at_end = df_frozen_nw_at_end['training_exp'].count()
+    df_frozen_nw_at_end = df_frozen_nw_at_end[[
+        'training_exp', 'dumped_at', 'detected_task_id', 'list_type', 'this_frozen_id',
+        'samples_per_each_task_at_train', 'this_seen_task_ids_train', 'this_correctly_predicted_task_ids_test_at_last', 'this_correctly_predicted_task_ids_probas_test_at_last',
+        'correct_network_selected_count_at_last', 'instances_per_task_at_last']]
+    df_frozen_nw_at_end.to_excel(excel_writer, sheet_name=d+'_frozen_last', index=False)
+
     y_max = np.max(pd_f.max())
 
     df_eval = pd.read_csv(eval_csv_file)
@@ -191,7 +202,7 @@ def main():
             ax_3 = fig_3.add_subplot(gs_3[rows, cols], label=d_name)
             plot_task_detection(net_csv_file, d_name, ax_1)
             plot_network_selection(net_csv_file, excel_writer, d_name, ax_2)
-            plot_fozen_nw_stats(net_csv_file, eval_csv_file, d_name, ax_3)
+            plot_fozen_nw_stats(net_csv_file, eval_csv_file, excel_writer, d_name, ax_3)
             rows += 1
 
     mplcursors.cursor(hover=True)

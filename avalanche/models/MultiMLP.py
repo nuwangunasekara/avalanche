@@ -275,6 +275,7 @@ class ANN:
         self.seen_task_ids_train = {}
         self.correctly_predicted_task_ids_test = {}
         self.correctly_predicted_task_ids_test_at_last = {}
+        self.correctly_predicted_task_ids_probas_test_at_last = {}
         self.init_values()
 
     def init_values(self):
@@ -300,6 +301,7 @@ class ANN:
         self.seen_task_ids_train = {}
         self.correctly_predicted_task_ids_test = {}
         self.correctly_predicted_task_ids_test_at_last = {}
+        self.correctly_predicted_task_ids_probas_test_at_last = {}
 
         if self.hidden_layers_for_MLP is None:
             pass
@@ -763,6 +765,7 @@ class MultiMLP(nn.Module):
             n.seen_task_ids_train = {}
             n.correctly_predicted_task_ids_test = {}
             n.correctly_predicted_task_ids_test_at_last = {}
+            n.correctly_predicted_task_ids_probas_test_at_last = {}
 
     @torch.no_grad()
     def add_nn_with_lowest_loss_to_frozen_list(self):
@@ -811,16 +814,26 @@ class MultiMLP(nn.Module):
             else:
                 self.instances_per_task_at_last[task_id] += 1
             for j in range(len(self.frozen_nets)):
+                # get in-class or not
                 p = self.get_task_predictor_probas_for_nn(x[None, i, :], x_flatten[None, i, :], self.task_detector_type,
                                                           self.frozen_nets[j], j,
                                                           False)
-                if p is not None and p > 0:
-                    # if self.frozen_nets[j].seen_task_ids_train.get(task_id) is not None:
+                if p is not None and p > 0.0:
                     self.correct_network_selected_count_at_last += 1
                     if self.frozen_nets[j].correctly_predicted_task_ids_test_at_last.get(task_id) is None:
                         self.frozen_nets[j].correctly_predicted_task_ids_test_at_last[task_id] = 1
                     else:
                         self.frozen_nets[j].correctly_predicted_task_ids_test_at_last[task_id] += 1
+
+                # get probas
+                p = self.get_task_predictor_probas_for_nn(x[None, i, :], x_flatten[None, i, :], self.task_detector_type,
+                                                          self.frozen_nets[j], j,
+                                                          True)
+                if p is not None and p > 0.0:
+                    if self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last.get(task_id) is None:
+                        self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] = p
+                    else:
+                        self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] += p
 
     def forward(self, x):
         r = x.shape[0]
@@ -991,6 +1004,7 @@ class MultiMLP(nn.Module):
                   'this_chosen_for_test,'
                   'this_correctly_predicted_task_ids_test,'
                   'this_correctly_predicted_task_ids_test_at_last,'
+                  'this_correctly_predicted_task_ids_probas_test_at_last'
                   'correct_network_selected,'
                   'correct_network_selected_count_at_last,'
                   'instances_per_task_at_last,'
@@ -1010,7 +1024,7 @@ class MultiMLP(nn.Module):
         self.print_stats_hader()
 
         for i in range(len(nn_l)):
-            print('{},{},{},{},{},"{}",{},{},{},{},{},{},"{}",{},{},{},{},{},"{}","{}",{},{},"{}",{},{}'.format(
+            print('{},{},{},{},{},"{}",{},{},{},{},{},{},"{}",{},{},{},{},{},"{}","{}","{}",{},{},"{}",{},{}'.format(
                 self.training_exp - 1 if dumped_at == 'after_eval' else self.training_exp,
                 dumped_at,
                 self.detected_task_id,
@@ -1031,6 +1045,7 @@ class MultiMLP(nn.Module):
                 nn_l[i].chosen_for_test,
                 nn_l[i].correctly_predicted_task_ids_test,
                 nn_l[i].correctly_predicted_task_ids_test_at_last,
+                nn_l[i].correctly_predicted_task_ids_probas_test_at_last,
                 self.correct_network_selected_count,
                 self.correct_network_selected_count_at_last,
                 self.instances_per_task_at_last,
