@@ -818,7 +818,7 @@ class MultiMLP(nn.Module):
                 p = self.get_task_predictor_probas_for_nn(x[None, i, :], x_flatten[None, i, :], self.task_detector_type,
                                                           self.frozen_nets[j], j,
                                                           False)
-                if p is not None and p > 0.0:
+                if p is not None and p.item() > 0.0:
                     self.correct_network_selected_count_at_last += 1
                     if self.frozen_nets[j].correctly_predicted_task_ids_test_at_last.get(task_id) is None:
                         self.frozen_nets[j].correctly_predicted_task_ids_test_at_last[task_id] = 1
@@ -829,11 +829,11 @@ class MultiMLP(nn.Module):
                 p = self.get_task_predictor_probas_for_nn(x[None, i, :], x_flatten[None, i, :], self.task_detector_type,
                                                           self.frozen_nets[j], j,
                                                           True)
-                if p is not None and p > 0.0:
+                if p is not None and p.item() > 0.0:
                     if self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last.get(task_id) is None:
-                        self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] = p
+                        self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] = p.item()
                     else:
-                        self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] += p
+                        self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] += p.item()
 
     def forward(self, x):
         r = x.shape[0]
