@@ -1004,7 +1004,7 @@ class MultiMLP(nn.Module):
                   'this_chosen_for_test,'
                   'this_correctly_predicted_task_ids_test,'
                   'this_correctly_predicted_task_ids_test_at_last,'
-                  'this_correctly_predicted_task_ids_probas_test_at_last'
+                  'this_correctly_predicted_task_ids_probas_test_at_last,'
                   'correct_network_selected,'
                   'correct_network_selected_count_at_last,'
                   'instances_per_task_at_last,'
