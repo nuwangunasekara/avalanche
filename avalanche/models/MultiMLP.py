@@ -760,6 +760,7 @@ class MultiMLP(nn.Module):
             n.one_class_detector = init_one_class_detector()
             n.scaler = init_scaler()
             n.logistic_regression = init_logistic_regression()
+            n.one_class_detector_fit_called = False
             n.loss_estimator = ADWIN(delta=n.loss_estimator_delta)
             n.seen_task_ids_train = {}
             n.correctly_predicted_task_ids_test = {}
