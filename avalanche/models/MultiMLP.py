@@ -549,7 +549,6 @@ class MultiMLP(nn.Module):
         self.detected_task_id = 0
         self.accumulated_x = [None]
         # self.learned_tasks = [0]
-        self.task_detected = False
         self.instances_per_task_at_last = {}
 
         self.init_values()
@@ -963,13 +962,14 @@ class MultiMLP(nn.Module):
 
         nn_with_lowest_loss = self.get_train_nn_index_with_lowest_loss()
 
-        self.task_detected = False
-        for m in self.train_nets:
-            if m.task_detected:
-                self.task_detected = True
-        if self.task_detected:
-            self.add_nn_with_lowest_loss_to_frozen_list()
-            self.reset_one_class_detectors_and_loss_estimators_seen_task_ids()
+        if self.auto_detect_tasks:
+            task_detected = False
+            for m in self.train_nets:
+                if m.task_detected:
+                    task_detected = True
+            if task_detected:
+                self.add_nn_with_lowest_loss_to_frozen_list()
+                self.reset_one_class_detectors_and_loss_estimators_seen_task_ids()
 
         if (self.train_task_predictor_at_the_end and
                 self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_ONE_CLASS) and use_instances_for_task_detector_training:
