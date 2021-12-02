@@ -50,6 +50,10 @@ PREDICT_METHOD_TASK_ID_KNOWN = 3
 PREDICT_METHOD_NW_CONFIDENCE = 4
 PREDICT_METHOD_NAIVE_BAYES = 5
 
+DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END = -1
+WITH_ACCUMULATED_INSTANCES = 0
+WITH_ACCUMULATED_LEARNED_FEATURES = 1
+WITH_ACCUMULATED_STATIC_FEATURES = 2
 
 def train_one_class_classifier(features, one_class_detector, train_logistic_regression, logistic_regression, scaler=None):
     xx = features.cpu().numpy()
@@ -234,7 +238,7 @@ class ANN:
                  loss_estimator_delta=1e-3,
                  task_detector_type=PREDICT_METHOD_ONE_CLASS,
                  back_prop_skip_loss_threshold=0.6,
-                 train_task_predictor_at_the_end=True):
+                 train_task_predictor_at_the_end=DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END):
         # configuration variables (which has the same name as init parameters)
         self.id = id
         self.frozen_id = None
@@ -276,6 +280,7 @@ class ANN:
         self.correctly_predicted_task_ids_test = {}
         self.correctly_predicted_task_ids_test_at_last = {}
         self.correctly_predicted_task_ids_probas_test_at_last = {}
+        self.accumulated_features = None
         self.init_values()
 
     def init_values(self):
@@ -302,6 +307,7 @@ class ANN:
         self.correctly_predicted_task_ids_test = {}
         self.correctly_predicted_task_ids_test_at_last = {}
         self.correctly_predicted_task_ids_probas_test_at_last = {}
+        self.accumulated_features = None
 
         if self.hidden_layers_for_MLP is None:
             pass
@@ -388,13 +394,18 @@ class ANN:
         self.optimizer.zero_grad()  # zero the gradient buffers
         # forward propagation
         learned_features = None
-        if (self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_ONE_CLASS) and use_instances_for_task_detector_training and not self.train_task_predictor_at_the_end:
+        if (self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_ONE_CLASS) and use_instances_for_task_detector_training and \
+                (self.train_task_predictor_at_the_end == DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END or self.train_task_predictor_at_the_end == WITH_ACCUMULATED_LEARNED_FEATURES):
             learned_features = [None]
 
         outputs = self.net(x, learned_features=learned_features)
 
-        if self.train_task_predictor_at_the_end:
-            pass
+        if self.train_task_predictor_at_the_end != DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END:
+            if self.train_task_predictor_at_the_end == WITH_ACCUMULATED_LEARNED_FEATURES:
+                if self.accumulated_features is None:
+                    self.accumulated_features = learned_features[0].cpu()
+                else:
+                    self.accumulated_features = torch.vstack((self.accumulated_features, learned_features[0].cpu()))
         else: # train task predictor online using current learned_features
             if self.task_detector_type == PREDICT_METHOD_ONE_CLASS and use_instances_for_task_detector_training:
                 self.train_one_class_classifier(learned_features[0].cpu(), use_one_class_probas)
@@ -497,7 +508,7 @@ class MultiMLP(nn.Module):
                  stats_print_frequency=0,
                  nn_pool_type='30MLP',
                  predict_method=PREDICT_METHOD_ONE_CLASS,
-                 train_task_predictor_at_the_end=True,
+                 train_task_predictor_at_the_end=DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END,
                  device='cpu',
                  model_dump_dir=None,
                  reset_training_pool=True,
@@ -772,18 +783,23 @@ class MultiMLP(nn.Module):
         idx = self.get_train_nn_index_with_lowest_loss()
         self.print_nn_list([self.train_nets[idx]], list_type='train_net', dumped_at='task_detect')
 
-        if self.reset_training_pool:
-            for i in range(len(self.train_nets)):
-                if i != idx:  # clear other nets memory
+        for i in range(len(self.train_nets)):
+            if i != idx:  # clear other nets memory
+                if self.reset_training_pool:
                     self.train_nets[i] = None
+                else:
+                    self.train_nets[i].accumulated_features = None
 
-        if self.train_task_predictor_at_the_end:
+        if self.train_task_predictor_at_the_end != DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END:
             learned_features = [None]
             device = torch.device('cpu')
             self.train_nets[idx].net.to(device)  # move the model to cpu
 
             # fills learned_features
-            outputs = self.train_nets[idx].net(self.accumulated_x[0].to(device), learned_features=learned_features)
+            if self.train_task_predictor_at_the_end == WITH_ACCUMULATED_INSTANCES:
+                outputs = self.train_nets[idx].net(self.accumulated_x[0].to(device), learned_features=learned_features)
+            else:
+                learned_features[0] = self.train_nets[idx].accumulated_features
 
             if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
                 self.train_nets[idx].train_one_class_classifier(learned_features[0],
@@ -972,8 +988,8 @@ class MultiMLP(nn.Module):
                 self.add_nn_with_lowest_loss_to_frozen_list()
                 self.reset_one_class_detectors_and_loss_estimators_seen_task_ids()
 
-        if (self.train_task_predictor_at_the_end and
-                self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_ONE_CLASS) and use_instances_for_task_detector_training:
+        if self.train_task_predictor_at_the_end == WITH_ACCUMULATED_INSTANCES and \
+                (self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_ONE_CLASS) and use_instances_for_task_detector_training:
             if self.accumulated_x[0] is None:
                 self.accumulated_x[0] = x.cpu()
             else:

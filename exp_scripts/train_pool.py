@@ -9,6 +9,8 @@ from avalanche.models import *
 from avalanche.models.MultiMLP import SimpleCNN, CNN4
 from avalanche.models.MultiMLP import PREDICT_METHOD_ONE_CLASS, PREDICT_METHOD_MAJORITY_VOTE, PREDICT_METHOD_RANDOM, \
     PREDICT_METHOD_TASK_ID_KNOWN, PREDICT_METHOD_NW_CONFIDENCE, PREDICT_METHOD_NAIVE_BAYES
+from avalanche.models.MultiMLP import DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END, WITH_ACCUMULATED_INSTANCES, \
+    WITH_ACCUMULATED_LEARNED_FEATURES, WITH_ACCUMULATED_STATIC_FEATURES
 from avalanche.evaluation.metrics import *
 from avalanche.logging import InteractiveLogger, TextLogger, TensorboardLogger, CSVLogger
 from avalanche.training.plugins import EvaluationPlugin
@@ -166,6 +168,16 @@ def main(args):
             shutil.rmtree(model_dump_dir)
         os.mkdir(model_dump_dir)
 
+        train_task_predictor_at_the_end = DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END
+        if args.train_task_predictor_at_the_end == 'DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END':
+            train_task_predictor_at_the_end = DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END
+        elif args.train_task_predictor_at_the_end == 'WITH_ACCUMULATED_INSTANCES':
+            train_task_predictor_at_the_end = WITH_ACCUMULATED_INSTANCES
+        elif args.train_task_predictor_at_the_end == 'WITH_ACCUMULATED_LEARNED_FEATURES':
+            train_task_predictor_at_the_end = WITH_ACCUMULATED_LEARNED_FEATURES
+        elif args.train_task_predictor_at_the_end == 'WITH_ACCUMULATED_STATIC_FEATURES':
+            train_task_predictor_at_the_end = WITH_ACCUMULATED_STATIC_FEATURES
+
         model = MultiMLP(
             num_classes=scenario.n_classes,
             use_threads=False,
@@ -175,7 +187,7 @@ def main(args):
             nn_pool_type=args.pool_type,
             back_prop_skip_loss_threshold=args.skip_back_prop_threshold,
             device=device,
-            train_task_predictor_at_the_end=args.train_task_predictor_at_the_end,
+            train_task_predictor_at_the_end=train_task_predictor_at_the_end,
             stats_file=args.base_dir + '/logs/exp_logs/' + args.log_file_name + '_Nets.csv',
             model_dump_dir=model_dump_dir,
             reset_training_pool=args.reset_training_pool,
@@ -305,11 +317,16 @@ if __name__ == '__main__':
     parser.add_argument('--log_file_name', type=str, default='',
                         help='Log file name')
 
-    parser.add_argument('--train_task_predictor_at_the_end', dest='train_task_predictor_at_the_end',
-                        action='store_true')
-    parser.add_argument('--no-train_task_predictor_at_the_end', dest='train_task_predictor_at_the_end',
-                        action='store_false')
-    parser.set_defaults(train_task_predictor_at_the_end=False)
+    parser.add_argument('--train_task_predictor_at_the_end', type=str, default='ONE_CLASS',
+                        choices=['DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END',
+                                 'WITH_ACCUMULATED_INSTANCES',
+                                 'WITH_ACCUMULATED_LEARNED_FEATURES',
+                                 'WITH_ACCUMULATED_STATIC_FEATURES'],
+                        help='Train task predictor at the end: '
+                             'DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END, '
+                             'WITH_ACCUMULATED_INSTANCES, '
+                             'WITH_ACCUMULATED_LEARNED_FEATURES, '
+                             'WITH_ACCUMULATED_STATIC_FEATURES.')
 
     # reset_training_pool
     parser.add_argument('--reset_training_pool', dest='reset_training_pool',
