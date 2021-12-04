@@ -19,6 +19,8 @@ from skmultiflow.bayes import NaiveBayes
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torchvision import transforms
+import torchvision.models.quantization as models
 
 Sigmoid = 1
 Tanh = 2
@@ -55,6 +57,46 @@ WITH_ACCUMULATED_INSTANCES = 0
 WITH_ACCUMULATED_LEARNED_FEATURES = 1
 WITH_ACCUMULATED_STATIC_FEATURES = 2
 
+
+def create_static_feature_extractor():
+    # https://keras.io/api/applications/
+    # https://pytorch.org/hub/
+    # https://pytorch.org/tutorials/intermediate/quantized_transfer_learning_tutorial.html
+    original_model = models.resnet18(pretrained=True, progress=True, quantize=True)
+    # you dont need this as the model is quantized
+    for param in original_model.parameters():
+        param.requires_grad = False
+
+    # Step 1. Isolate the feature extractor.
+    model_fe = nn.Sequential(
+        original_model.quant,  # Quantize the input
+        original_model.conv1,
+        original_model.bn1,
+        original_model.relu,
+        original_model.maxpool,
+        original_model.layer1,
+        original_model.layer2,
+        original_model.layer3,
+        original_model.layer4,
+        original_model.avgpool,
+        original_model.dequant,  # Dequantize the output
+    )
+
+    # # Step 2. Create a new "head"
+    # new_head = nn.Sequential(
+    #     nn.Dropout(p=0.5),
+    #     nn.Linear(num_ftrs, 2),
+    # )
+    #
+    # Step 3. Combine, and don't forget the quant stubs.
+    new_model = nn.Sequential(
+        model_fe,
+        nn.Flatten(1),
+        # new_head,
+    )
+    return new_model
+
+
 def train_one_class_classifier(features, one_class_detector, train_logistic_regression, logistic_regression, scaler=None):
     xx = features.cpu().numpy()
     one_class_detector.partial_fit(xx)
@@ -71,6 +113,30 @@ def train_one_class_classifier(features, one_class_detector, train_logistic_regr
             scaler.partial_fit(df_scores)
             df_scores = scaler.transform(df_scores)
         logistic_regression.partial_fit(df_scores, yy, classes=np.array([0, 1]))
+
+
+preprocessor = transforms.Compose([
+    # https://discuss.pytorch.org/t/grayscale-to-rgb-transform/18315/9
+    # expand channels
+    # transforms.Lambda(lambda x: x.repeat(3, 1, 1)) if len(x.shape) < 4 else NoneTransform(),
+    transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
+    # transforms.Pad(0, fill=3),
+    # transforms.ToTensor(),
+    # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
+
+
+def get_static_features(x, feature_extractor, device):
+    # to(self.train_nets[idx].device)
+    feature_extractor.to(device)
+    x.to(device)
+    if len(x.shape) < 4:
+        preprocessed_x = preprocessor(x)
+    else:
+        preprocessed_x = x
+    return feature_extractor(preprocessed_x).cpu()
 
 
 class SimpleCNN(nn.Module):
@@ -560,9 +626,11 @@ class MultiMLP(nn.Module):
         self.training_exp = 0
         self.available_nn_id = 0
         self.detected_task_id = 0
-        self.accumulated_x = [None]
+        self.accumulated_x_or_features = [None]
         # self.learned_tasks = [0]
         self.instances_per_task_at_last = {}
+        self.f_ex = create_static_feature_extractor()
+        self.f_ex.to(self.device)
 
         self.init_values()
 
@@ -681,16 +749,20 @@ class MultiMLP(nn.Module):
         return np.argmax(predictions.sum(axis=1).sum(axis=1), axis=0)
 
     @staticmethod
-    def get_task_predictor_probas_for_nn(x, x_flatten, predictor, n, n_idx):
+    def get_task_predictor_probas_for_nn(x, x_flatten, predictor, n, n_idx, device, feature_extractor=None):
         one_class_y = None
         p_n_idx = None
         one_class_df = None
 
-        if n.network_type == NETWORK_TYPE_CNN:
-            xx = n.net.features(x)
-            xx = xx.view(xx.size(0), -1)
+        if feature_extractor is not None:
+            xx = get_static_features(x, feature_extractor, device)
         else:
-            xx = x_flatten
+            if n.network_type == NETWORK_TYPE_CNN:
+                xx = n.net.features(x)
+                xx = xx.view(xx.size(0), -1)
+            else:
+                xx = x_flatten
+
         xxx = xx.cpu().numpy()
         if predictor == PREDICT_METHOD_ONE_CLASS:
             one_class_y = [0.0]
@@ -716,7 +788,9 @@ class MultiMLP(nn.Module):
                 x_flatten,
                 predictor,
                 net_list[i],
-                i)
+                i,
+                self.device,
+                self.f_ex if self.train_task_predictor_at_the_end == WITH_ACCUMULATED_STATIC_FEATURES else None)
             if self.use_one_class_probas:
                 p = p_i
             else:
@@ -812,7 +886,9 @@ class MultiMLP(nn.Module):
 
             # fills learned_features
             if self.train_task_predictor_at_the_end == WITH_ACCUMULATED_INSTANCES:
-                outputs = self.train_nets[idx].net(self.accumulated_x[0].to(device), learned_features=learned_features)
+                outputs = self.train_nets[idx].net(self.accumulated_x_or_features[0].to(device), learned_features=learned_features)
+            elif self.train_task_predictor_at_the_end == WITH_ACCUMULATED_STATIC_FEATURES:
+                learned_features[0] = self.accumulated_x_or_features[0].to(device)
             else:
                 learned_features[0] = self.train_nets[idx].accumulated_features
 
@@ -834,8 +910,8 @@ class MultiMLP(nn.Module):
             self.train_nets[idx] = None  # clear chosen net's memory
 
         self.detected_task_id += 1
-        self.accumulated_x = None
-        self.accumulated_x = [None]
+        self.accumulated_x_or_features = None
+        self.accumulated_x_or_features = [None]
 
     def check_accuracy_of_one_class_classifiers(self, x, x_flatten):
         for i in range(len(x)):
@@ -851,7 +927,9 @@ class MultiMLP(nn.Module):
                     x_flatten[None, i, :],
                     self.task_detector_type,
                     self.frozen_nets[j],
-                    j)
+                    j,
+                    self.device,
+                    self.f_ex if self.train_task_predictor_at_the_end == WITH_ACCUMULATED_STATIC_FEATURES else None)
                 # get in-class or not
                 if one_class_y is not None and one_class_y.item() > 0.0:
                     self.correct_network_selected_count_at_last += 1
@@ -1026,12 +1104,18 @@ class MultiMLP(nn.Module):
                 self.add_nn_with_lowest_loss_to_frozen_list()
                 self.reset_one_class_detectors_and_loss_estimators_seen_task_ids()
 
-        if self.train_task_predictor_at_the_end == WITH_ACCUMULATED_INSTANCES and \
-                (self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_ONE_CLASS) and use_instances_for_task_detector_training:
-            if self.accumulated_x[0] is None:
-                self.accumulated_x[0] = x.cpu()
-            else:
-                self.accumulated_x[0] = torch.cat([self.accumulated_x[0], x.cpu()], dim=0)
+        if (self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_ONE_CLASS) and use_instances_for_task_detector_training:
+            x_or_features = None
+            if self.train_task_predictor_at_the_end == WITH_ACCUMULATED_INSTANCES:
+                x_or_features = x.cpu()
+            elif self.train_task_predictor_at_the_end == WITH_ACCUMULATED_STATIC_FEATURES:
+                x_or_features = get_static_features(x, self.f_ex, self.device)
+
+            if x_or_features is not None:
+                if self.accumulated_x_or_features[0] is None:
+                    self.accumulated_x_or_features[0] = x_or_features
+                else:
+                    self.accumulated_x_or_features[0] = torch.cat([self.accumulated_x_or_features[0], x_or_features], dim=0)
 
         self.train_nets[nn_with_lowest_loss].chosen_after_train += r
         return self.train_nets[nn_with_lowest_loss].net(
