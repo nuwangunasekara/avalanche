@@ -539,6 +539,8 @@ class MultiMLP(nn.Module):
         self.use_weights_from_task_detectors = use_weights_from_task_detectors
         self.auto_detect_tasks = auto_detect_tasks
         self.n_experiences = n_experiences
+        self.one_class_stats_file = sys.stdout
+        self.one_class_stats_header_printed = False
 
         # status variables
         self.train_nets = []  # type: List[ANN]
@@ -568,6 +570,7 @@ class MultiMLP(nn.Module):
         # init status variables
 
         self.heading_printed = False
+        self.one_class_stats_file = sys.stdout if self.stats_file is sys.stdout else open(self.stats_file.replace('.csv', '_TD.csv'), 'w')
         self.stats_file = sys.stdout if self.stats_file is sys.stdout else open(self.stats_file, 'w')
 
         self.create_nn_pool()
@@ -652,7 +655,7 @@ class MultiMLP(nn.Module):
             v = nn_list[i].get_votes(x, x_flatten)
 
             if weights_for_each_network is not None:
-                if votes is not None:
+                if votes is not None and nn_list[i].one_class_detector_fit_called:
                     w, _ = self.get_best_matched_nn_index_and_weights_via_predictor(x, x_flatten, predictor, [nn_list[i]])
                     v *= w[i]
 
@@ -678,8 +681,11 @@ class MultiMLP(nn.Module):
         return np.argmax(predictions.sum(axis=1).sum(axis=1), axis=0)
 
     @staticmethod
-    def get_task_predictor_probas_for_nn(x, x_flatten, predictor, n, n_idx, use_one_class_probas):
-        yyy = None
+    def get_task_predictor_probas_for_nn(x, x_flatten, predictor, n, n_idx):
+        one_class_y = None
+        p_n_idx = None
+        one_class_df = None
+
         if n.network_type == NETWORK_TYPE_CNN:
             xx = n.net.features(x)
             xx = xx.view(xx.size(0), -1)
@@ -687,26 +693,35 @@ class MultiMLP(nn.Module):
             xx = x_flatten
         xxx = xx.cpu().numpy()
         if predictor == PREDICT_METHOD_ONE_CLASS:
-            yyy = [0.0]
+            one_class_y = [0.0]
             if n.one_class_detector_fit_called:
-                if use_one_class_probas:
-                    df_scores = n.one_class_detector.decision_function(xxx)
-                    df_scores = df_scores.reshape(-1, 1)
-                    yyy = n.logistic_regression.predict_proba(df_scores)
-                    yyy = yyy[:, 1]  # get probabilities for class 1 (inlier)
-                else:
-                    yyy = n.one_class_detector.predict(xxx)
+                one_class_y = n.one_class_detector.predict(xxx)
+                one_class_df = n.one_class_detector.decision_function(xxx)
+                one_class_df = one_class_df.reshape(-1, 1)
+                p_n_idx = n.logistic_regression.predict_proba(one_class_df)
+                p_n_idx = p_n_idx[:, 1]  # get probabilities for class 1 (inlier)
+
         elif predictor == PREDICT_METHOD_NAIVE_BAYES:
             # pre and post pad 0's to get array length len(net_list)
-            yyy = n.naive_bayes.predict_proba(xxx)
-            yyy = yyy[:, n_idx]  # get probas for n_idx th task id from n_idx th (or n) network
-        return yyy
+            p_n_idx = n.naive_bayes.predict_proba(xxx)
+            p_n_idx = p_n_idx[:, n_idx]  # get probas for n_idx th task id from n_idx th (or n) network
+        return one_class_df, one_class_y, p_n_idx
 
     def get_best_matched_nn_index_and_weights_via_predictor(self, x, x_flatten, predictor, net_list):
         predictions = []
         # score_samples = []
         for i in range(len(net_list)):
-            p = self.get_task_predictor_probas_for_nn(x, x_flatten, predictor, net_list[i], i, self.use_one_class_probas)
+            one_class_df, one_class_y, p_i = self.get_task_predictor_probas_for_nn(
+                x,
+                x_flatten,
+                predictor,
+                net_list[i],
+                i)
+            if self.use_one_class_probas:
+                p = p_i
+            else:
+                p = one_class_y
+
             if p is not None:
                 predictions.append(p)
 
@@ -830,11 +845,15 @@ class MultiMLP(nn.Module):
             else:
                 self.instances_per_task_at_last[task_id] += 1
             for j in range(len(self.frozen_nets)):
+                is_nw_trained_on_task_id = 0 if self.frozen_nets[j].seen_task_ids_train.get(task_id) is None else 1
+                one_class_df, one_class_y, p_j = self.get_task_predictor_probas_for_nn(
+                    x[None, i, :],
+                    x_flatten[None, i, :],
+                    self.task_detector_type,
+                    self.frozen_nets[j],
+                    j)
                 # get in-class or not
-                p = self.get_task_predictor_probas_for_nn(x[None, i, :], x_flatten[None, i, :], self.task_detector_type,
-                                                          self.frozen_nets[j], j,
-                                                          False)
-                if p is not None and p.item() > 0.0:
+                if one_class_y is not None and one_class_y.item() > 0.0:
                     self.correct_network_selected_count_at_last += 1
                     if self.frozen_nets[j].correctly_predicted_task_ids_test_at_last.get(task_id) is None:
                         self.frozen_nets[j].correctly_predicted_task_ids_test_at_last[task_id] = 1
@@ -842,14 +861,33 @@ class MultiMLP(nn.Module):
                         self.frozen_nets[j].correctly_predicted_task_ids_test_at_last[task_id] += 1
 
                 # get probas
-                p = self.get_task_predictor_probas_for_nn(x[None, i, :], x_flatten[None, i, :], self.task_detector_type,
-                                                          self.frozen_nets[j], j,
-                                                          True)
-                if p is not None and p.item() > 0.0:
+                if p_j is not None and p_j.item() > 0.0:
                     if self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last.get(task_id) is None:
-                        self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] = p.item()
+                        self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] = p_j.item()
                     else:
-                        self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] += p.item()
+                        self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] += p_j.item()
+
+                if not self.one_class_stats_header_printed:
+                    print('{},{},{},{},{},{},{}'.format(
+                        'task_id',
+                        'nw_id',
+                        'frozen_id',
+                        'is_nw_trained_on_task_id',
+                        'one_class_df',
+                        'one_class_y',
+                        'p_j'
+                    ), file=self.one_class_stats_file, flush=True)
+                    self.one_class_stats_header_printed = True
+
+                print('{},{},{},{},{},{},{}'.format(
+                    task_id,
+                    self.frozen_nets[j].id,
+                    self.frozen_nets[j].frozen_id,
+                    is_nw_trained_on_task_id,
+                    one_class_df.item(),
+                    one_class_y.item(),
+                    p_j.item()
+                ), file=self.one_class_stats_file, flush=True)
 
     def forward(self, x):
         r = x.shape[0]
