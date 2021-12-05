@@ -94,7 +94,7 @@ def create_static_feature_extractor():
         nn.Flatten(1),
         # new_head,
     )
-    return new_model
+    return new_model.to(torch.device("cpu"))
 
 
 def train_one_class_classifier(features, one_class_detector, train_logistic_regression, logistic_regression, scaler=None):
@@ -128,10 +128,10 @@ preprocessor = transforms.Compose([
 ])
 
 
-def get_static_features(x, feature_extractor, device):
-    # to(self.train_nets[idx].device)
+def get_static_features(x, feature_extractor, device1):
+    device = torch.device("cpu")
     feature_extractor.to(device)
-    x.to(device)
+    x = x.to(device)
     if len(x.shape) < 4:
         preprocessed_x = preprocessor(x)
     else:
@@ -630,7 +630,6 @@ class MultiMLP(nn.Module):
         # self.learned_tasks = [0]
         self.instances_per_task_at_last = {}
         self.f_ex = create_static_feature_extractor()
-        self.f_ex.to(self.device)
 
         self.init_values()
 
