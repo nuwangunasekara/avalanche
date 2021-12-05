@@ -128,7 +128,7 @@ preprocessor = transforms.Compose([
 ])
 
 
-def get_static_features(x, feature_extractor, device1):
+def get_static_features(x, feature_extractor):
     device = torch.device("cpu")
     feature_extractor.to(device)
     x = x.to(device)
@@ -754,7 +754,7 @@ class MultiMLP(nn.Module):
         one_class_df = None
 
         if feature_extractor is not None:
-            xx = get_static_features(x, feature_extractor, device)
+            xx = get_static_features(x, feature_extractor)
         else:
             if n.network_type == NETWORK_TYPE_CNN:
                 xx = n.net.features(x)
@@ -1108,7 +1108,7 @@ class MultiMLP(nn.Module):
             if self.train_task_predictor_at_the_end == WITH_ACCUMULATED_INSTANCES:
                 x_or_features = x.cpu()
             elif self.train_task_predictor_at_the_end == WITH_ACCUMULATED_STATIC_FEATURES:
-                x_or_features = get_static_features(x, self.f_ex, self.device)
+                x_or_features = get_static_features(x, self.f_ex)
 
             if x_or_features is not None:
                 if self.accumulated_x_or_features[0] is None:
