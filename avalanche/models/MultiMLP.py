@@ -119,7 +119,7 @@ preprocessor = transforms.Compose([
     # https://discuss.pytorch.org/t/grayscale-to-rgb-transform/18315/9
     # expand channels
     # transforms.Lambda(lambda x: x.repeat(3, 1, 1)) if len(x.shape) < 4 else NoneTransform(),
-    transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
+    transforms.Lambda(lambda x: x.repeat(1, 3, 1, 1)), # repeat channel 1, 3 times
     transforms.Resize(256),
     transforms.CenterCrop(224),
     # transforms.Pad(0, fill=3),
@@ -132,8 +132,8 @@ def get_static_features(x, feature_extractor, device1):
     device = torch.device("cpu")
     feature_extractor.to(device)
     x = x.to(device)
-    if len(x.shape) < 4:
-        preprocessed_x = preprocessor(x)
+    if x.shape[1] < 3: # has les than 3 channels
+        preprocessed_x = preprocessor(x) # repeat channel 1
     else:
         preprocessed_x = x
     return feature_extractor(preprocessed_x).cpu()
