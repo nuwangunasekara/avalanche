@@ -62,6 +62,7 @@ def create_static_feature_extractor():
     # https://keras.io/api/applications/
     # https://pytorch.org/hub/
     # https://pytorch.org/tutorials/intermediate/quantized_transfer_learning_tutorial.html
+    # https://pytorch.org/hub/pytorch_vision_resnet/
     original_model = models.resnet18(pretrained=True, progress=True, quantize=True)
     # you dont need this as the model is quantized
     for param in original_model.parameters():
@@ -298,6 +299,7 @@ def init_scaler():
 def init_logistic_regression():
     return SGDClassifier(loss='log', random_state=0, max_iter=1, shuffle=False, warm_start=True)
 
+
 class ANN:
     def __init__(self,
                  id,
@@ -491,8 +493,6 @@ class ANN:
                 else:
                     self.accumulated_features = torch.vstack((self.accumulated_features, learned_features[0].cpu()))
 
-
-
         # backward propagation
         # print(self.net.linear[0].weight.data)
         self.loss = self.loss_f(outputs, y)
@@ -626,6 +626,7 @@ class MultiMLP(nn.Module):
         self.use_static_f_ex = use_static_f_ex
         self.one_class_stats_file = sys.stdout
         self.one_class_stats_header_printed = False
+        self.nb_stats_file = sys.stdout
 
         # status variables
         self.train_nets = []  # type: List[ANN]
@@ -650,6 +651,7 @@ class MultiMLP(nn.Module):
         self.instances_per_task_at_last = {}
         self.f_ex = create_static_feature_extractor()
         self.nb = NaiveBayes()
+        self.nb_preds = None
 
         self.init_values()
 
@@ -657,7 +659,9 @@ class MultiMLP(nn.Module):
         # init status variables
 
         self.heading_printed = False
-        self.one_class_stats_file = sys.stdout if self.stats_file is sys.stdout else open(self.stats_file.replace('.csv', '_TD.csv'), 'w')
+        self.nb_stats_file = sys.stdout if self.stats_file is sys.stdout else self.stats_file.replace('.csv', '')
+        self.one_class_stats_file = sys.stdout if self.stats_file is sys.stdout else open(
+            self.stats_file.replace('.csv', '_TD.csv'), 'w')
         self.stats_file = sys.stdout if self.stats_file is sys.stdout else open(self.stats_file, 'w')
 
         self.create_nn_pool()
@@ -936,22 +940,19 @@ class MultiMLP(nn.Module):
         self.accumulated_x_or_features = None
         self.accumulated_x_or_features = [None]
 
+    def save_nb_predictions(self):
+        if self.training_exp == self.n_experiences:
+            np.save(self.nb_stats_file, self.nb_preds)
+
     def check_accuracy_of_nb(self, x, x_flatten):
         for i in range(len(x)):
-            task_id = self.mb_task_id[i].item()
             p = self.nb_predict(x[None, i, :])
 
-            if not self.one_class_stats_header_printed:
-                print('{},{}'.format(
-                    'task_id',
-                    'p'
-                ), file=self.one_class_stats_file, flush=True)
-                self.one_class_stats_header_printed = True
-
-            print('{},{}'.format(
-                task_id,
-                p
-            ), file=self.one_class_stats_file, flush=True)
+            p_row = np.concatenate((p, self.mb_task_id[i].numpy().reshape((1, 1))), axis=1)
+            if self.nb_preds is None:
+                self.nb_preds = p_row
+            else:
+                self.nb_preds = np.concatenate((self.nb_preds, p_row))
 
     def check_accuracy_of_one_class_classifiers(self, x, x_flatten):
         for i in range(len(x)):
@@ -1136,7 +1137,7 @@ class MultiMLP(nn.Module):
             else:
                 # Random train
                 off_set = ((self.samples_seen_for_train_after_drift + i) % (
-                            len(self.train_nets) - number_of_top_mlps_to_train))
+                        len(self.train_nets) - number_of_top_mlps_to_train))
                 nn_index = number_of_top_mlps_to_train + off_set
 
             if self.train_nets[nn_index].network_type == NETWORK_TYPE_CNN:
