@@ -194,7 +194,8 @@ def main(args):
             use_one_class_probas=args.use_one_class_probas,
             use_weights_from_task_detectors=args.use_weights_from_task_detectors,
             auto_detect_tasks=args.auto_detect_tasks,
-            n_experiences=scenario.n_experiences)
+            n_experiences=scenario.n_experiences,
+            use_static_f_ex=True)
         optimizer = None
 
     criterion = torch.nn.CrossEntropyLoss()

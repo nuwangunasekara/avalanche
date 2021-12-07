@@ -115,6 +115,13 @@ def train_one_class_classifier(features, one_class_detector, train_logistic_regr
         logistic_regression.partial_fit(df_scores, yy, classes=np.array([0, 1]))
 
 
+def train_nb(features, nb, task_id):
+    x = features.cpu().numpy()
+    y = np.empty((x.shape[0],), dtype=np.int64)
+    y.fill(task_id)
+    nb.partial_fit(x, y)
+
+
 preprocessor = transforms.Compose([
     # https://discuss.pytorch.org/t/grayscale-to-rgb-transform/18315/9
     # expand channels
@@ -337,7 +344,6 @@ class ANN:
         self.one_class_detector_fit_called = False
         self.scaler = None
         self.logistic_regression = None
-        self.naive_bayes = None
         self.correct_class_predicted = 0
         self.input_dimensions = 0
         self.x_shape = None
@@ -364,7 +370,6 @@ class ANN:
         self.one_class_detector = init_one_class_detector()
         self.scaler = init_scaler()
         self.logistic_regression = init_logistic_regression()
-        self.naive_bayes = NaiveBayes()
         self.correct_class_predicted = 0
         self.input_dimensions = 0
         self.x_shape = None
@@ -441,7 +446,8 @@ class ANN:
                                    self.scaler)
         self.one_class_detector_fit_called = True
 
-    def train_net(self, x, y, c, r, true_task_id, detected_task_id, use_instances_for_task_detector_training, use_one_class_probas):
+    def train_net(self, x, y, c, r, true_task_id, use_instances_for_task_detector_training,
+                  use_one_class_probas, static_features):
         if self.net is None:
             self.input_dimensions = c
             self.x_shape = deepcopy(x.shape)
@@ -460,25 +466,32 @@ class ANN:
         self.optimizer.zero_grad()  # zero the gradient buffers
         # forward propagation
         learned_features = None
-        if (self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_ONE_CLASS) and use_instances_for_task_detector_training and \
-                (self.train_task_predictor_at_the_end == DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END or self.train_task_predictor_at_the_end == WITH_ACCUMULATED_LEARNED_FEATURES):
-            learned_features = [None]
+        use_static_features = False
+        if use_instances_for_task_detector_training:
+            if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
+                if self.train_task_predictor_at_the_end == DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END:
+                    if static_features is not None:
+                        use_static_features = True
+                    else:
+                        learned_features = [None]  # get learned features
+                elif self.train_task_predictor_at_the_end == WITH_ACCUMULATED_LEARNED_FEATURES:
+                    learned_features = [None]  # get learned features
 
-        outputs = self.net(x, learned_features=learned_features)
+        outputs = self.net(x, learned_features=learned_features)  # trains nn and fills learned_features if necessary
 
-        if self.train_task_predictor_at_the_end != DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END:
-            if self.train_task_predictor_at_the_end == WITH_ACCUMULATED_LEARNED_FEATURES:
+        if use_instances_for_task_detector_training:
+            if self.train_task_predictor_at_the_end == DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END:
+                if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
+                    if use_static_features:
+                        learned_features[0] = static_features
+                    self.train_one_class_classifier(learned_features[0].cpu(), use_one_class_probas)
+            elif self.train_task_predictor_at_the_end == WITH_ACCUMULATED_LEARNED_FEATURES:
                 if self.accumulated_features is None:
                     self.accumulated_features = learned_features[0].cpu()
                 else:
                     self.accumulated_features = torch.vstack((self.accumulated_features, learned_features[0].cpu()))
-        else: # train task predictor online using current learned_features
-            if self.task_detector_type == PREDICT_METHOD_ONE_CLASS and use_instances_for_task_detector_training:
-                self.train_one_class_classifier(learned_features[0].cpu(), use_one_class_probas)
-            elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
-                nb_y = np.empty((learned_features[0].shape[0],), dtype=np.int64)
-                nb_y.fill(detected_task_id)
-                self.naive_bayes.partial_fit(learned_features[0].cpu().numpy(), nb_y)
+
+
 
         # backward propagation
         # print(self.net.linear[0].weight.data)
@@ -529,8 +542,12 @@ def flatten_dimensions(mb_x):
     return c, x.view(x.size(0), c)
 
 
-def net_train(net: ANN, x: np.ndarray, r, c, y: np.ndarray, true_task_id, detected_task_id, use_instances_for_task_detector_training, use_one_class_probas):
-    net.train_net(x, y, c, r, true_task_id, detected_task_id, use_instances_for_task_detector_training, use_one_class_probas)
+def net_train(net: ANN, x: np.ndarray, r, c, y: np.ndarray, true_task_id,
+              use_instances_for_task_detector_training,
+              use_one_class_probas,
+              static_features):
+    net.train_net(x, y, c, r, true_task_id,use_instances_for_task_detector_training,
+                  use_one_class_probas, static_features)
 
 
 def save_model(best_model: ANN, abstract_model_file_name, nn_model_file_name, preserve_net=False):
@@ -582,7 +599,8 @@ class MultiMLP(nn.Module):
                  vote_weight_bias=1e-3,
                  use_weights_from_task_detectors=False,
                  auto_detect_tasks=False,
-                 n_experiences=None):
+                 n_experiences=None,
+                 use_static_f_ex=False):
         super().__init__()
 
         # configuration variables (which has the same name as init parameters)
@@ -605,6 +623,7 @@ class MultiMLP(nn.Module):
         self.use_weights_from_task_detectors = use_weights_from_task_detectors
         self.auto_detect_tasks = auto_detect_tasks
         self.n_experiences = n_experiences
+        self.use_static_f_ex = use_static_f_ex
         self.one_class_stats_file = sys.stdout
         self.one_class_stats_header_printed = False
 
@@ -630,6 +649,7 @@ class MultiMLP(nn.Module):
         # self.learned_tasks = [0]
         self.instances_per_task_at_last = {}
         self.f_ex = create_static_feature_extractor()
+        self.nb = NaiveBayes()
 
         self.init_values()
 
@@ -748,9 +768,9 @@ class MultiMLP(nn.Module):
         return np.argmax(predictions.sum(axis=1).sum(axis=1), axis=0)
 
     @staticmethod
-    def get_task_predictor_probas_for_nn(x, x_flatten, predictor, n, n_idx, device, feature_extractor=None):
+    def get_one_class_probas_for_nn(x, x_flatten, n, feature_extractor=None):
         one_class_y = None
-        p_n_idx = None
+        one_class_p = None
         one_class_df = None
 
         if feature_extractor is not None:
@@ -763,50 +783,56 @@ class MultiMLP(nn.Module):
                 xx = x_flatten
 
         xxx = xx.cpu().numpy()
-        if predictor == PREDICT_METHOD_ONE_CLASS:
-            one_class_y = [0.0]
-            if n.one_class_detector_fit_called:
-                one_class_y = n.one_class_detector.predict(xxx)
-                one_class_df = n.one_class_detector.decision_function(xxx)
-                one_class_df = one_class_df.reshape(-1, 1)
-                p_n_idx = n.logistic_regression.predict_proba(one_class_df)
-                p_n_idx = p_n_idx[:, 1]  # get probabilities for class 1 (inlier)
+        one_class_y = [0.0]
+        if n.one_class_detector_fit_called:
+            one_class_y = n.one_class_detector.predict(xxx)
+            one_class_df = n.one_class_detector.decision_function(xxx)
+            one_class_df = one_class_df.reshape(-1, 1)
+            one_class_p = n.logistic_regression.predict_proba(one_class_df)
+            one_class_p = one_class_p[:, 1]  # get probabilities for class 1 (inlier)
 
-        elif predictor == PREDICT_METHOD_NAIVE_BAYES:
-            # pre and post pad 0's to get array length len(net_list)
-            p_n_idx = n.naive_bayes.predict_proba(xxx)
-            p_n_idx = p_n_idx[:, n_idx]  # get probas for n_idx th task id from n_idx th (or n) network
-        return one_class_df, one_class_y, p_n_idx
+        return one_class_df, one_class_y, one_class_p
 
     def get_best_matched_nn_index_and_weights_via_predictor(self, x, x_flatten, predictor, net_list):
-        predictions = []
-        # score_samples = []
-        for i in range(len(net_list)):
-            one_class_df, one_class_y, p_i = self.get_task_predictor_probas_for_nn(
-                x,
-                x_flatten,
-                predictor,
-                net_list[i],
-                i,
-                self.device,
-                self.f_ex if self.train_task_predictor_at_the_end == WITH_ACCUMULATED_STATIC_FEATURES else None)
-            if self.use_one_class_probas:
-                p = p_i
+        if predictor == PREDICT_METHOD_ONE_CLASS:
+            predictions = []
+            for i in range(len(net_list)):
+                one_class_df, one_class_y, one_class_p = self.get_one_class_probas_for_nn(
+                    x,
+                    x_flatten,
+                    net_list[i],
+                    self.f_ex if self.use_static_f_ex else None)
+                if self.use_one_class_probas:
+                    p = one_class_p
+                else:
+                    p = one_class_y
+
+                if p is not None:
+                    predictions.append(p)
+            if len(predictions) > 0:
+                predictions = np.array(predictions)
+                best_matched_frozen_nn_index = np.argmax(predictions.mean(axis=1), axis=0).item()
+                weights_for_each_network = np.mean(predictions, axis=1) + self.vote_weight_bias
             else:
-                p = one_class_y
+                weights_for_each_network = None
+                best_matched_frozen_nn_index = -1
 
-            if p is not None:
-                predictions.append(p)
-
-        if len(predictions) > 0:
-            predictions = np.array(predictions)
-            best_matched_frozen_nn_index = np.argmax(predictions.sum(axis=1), axis=0).item()
-            weights_for_each_network = np.mean(predictions, axis=1) + self.vote_weight_bias
-        else:
-            weights_for_each_network = None
-            best_matched_frozen_nn_index = -1
+        elif predictor == PREDICT_METHOD_NAIVE_BAYES:
+            predictions = self.nb_predict(x)
+            best_matched_frozen_nn_index = np.argmax(predictions.mean(axis=0), axis=0).item()
+            weights_for_each_network = np.mean(predictions, axis=0) + self.vote_weight_bias
 
         return weights_for_each_network, best_matched_frozen_nn_index
+
+    def nb_train(self, features, task_id):
+        train_nb(features, self.nb, task_id)
+
+    def nb_predict(self, x):
+        p = None
+        if self.use_static_f_ex:
+            ex_f = get_static_features(x, self.f_ex)
+            p = self.nb.predict_proba(ex_f)
+        return p
 
     def get_train_nn_index_with_lowest_loss(self):
         self.train_nets.sort(key=lambda ann: ann.loss_estimator.estimation)
@@ -895,9 +921,7 @@ class MultiMLP(nn.Module):
                 self.train_nets[idx].train_one_class_classifier(learned_features[0],
                                                                 self.use_one_class_probas)
             elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
-                nb_y = np.empty((learned_features[0].shape[0],), dtype=np.int64)
-                nb_y.fill(self.detected_task_id)
-                self.train_nets[idx].naive_bayes.partial_fit(learned_features[0].cpu().numpy(), nb_y)
+                self.nb_train(learned_features[0], self.detected_task_id)
             self.train_nets[idx].net.to(self.train_nets[idx].device)   # move the model back to original device
         else:
             if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
@@ -912,6 +936,23 @@ class MultiMLP(nn.Module):
         self.accumulated_x_or_features = None
         self.accumulated_x_or_features = [None]
 
+    def check_accuracy_of_nb(self, x, x_flatten):
+        for i in range(len(x)):
+            task_id = self.mb_task_id[i].item()
+            p = self.nb_predict(x[None, i, :])
+
+            if not self.one_class_stats_header_printed:
+                print('{},{}'.format(
+                    'task_id',
+                    'p'
+                ), file=self.one_class_stats_file, flush=True)
+                self.one_class_stats_header_printed = True
+
+            print('{},{}'.format(
+                task_id,
+                p
+            ), file=self.one_class_stats_file, flush=True)
+
     def check_accuracy_of_one_class_classifiers(self, x, x_flatten):
         for i in range(len(x)):
             task_id = self.mb_task_id[i].item()
@@ -921,14 +962,12 @@ class MultiMLP(nn.Module):
                 self.instances_per_task_at_last[task_id] += 1
             for j in range(len(self.frozen_nets)):
                 is_nw_trained_on_task_id = 0 if self.frozen_nets[j].seen_task_ids_train.get(task_id) is None else 1
-                one_class_df, one_class_y, p_j = self.get_task_predictor_probas_for_nn(
+
+                one_class_df, one_class_y, one_class_p = self.get_one_class_probas_for_nn(
                     x[None, i, :],
                     x_flatten[None, i, :],
-                    self.task_detector_type,
                     self.frozen_nets[j],
-                    j,
-                    self.device,
-                    self.f_ex if self.train_task_predictor_at_the_end == WITH_ACCUMULATED_STATIC_FEATURES else None)
+                    self.f_ex if self.use_static_f_ex else None)
                 # get in-class or not
                 if one_class_y is not None and one_class_y.item() > 0.0:
                     self.correct_network_selected_count_at_last += 1
@@ -936,13 +975,12 @@ class MultiMLP(nn.Module):
                         self.frozen_nets[j].correctly_predicted_task_ids_test_at_last[task_id] = 1
                     else:
                         self.frozen_nets[j].correctly_predicted_task_ids_test_at_last[task_id] += 1
-
                 # get probas
-                if p_j is not None and p_j.item() > 0.0:
+                if one_class_p is not None and one_class_p.item() > 0.0:
                     if self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last.get(task_id) is None:
-                        self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] = p_j.item()
+                        self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] = one_class_p.item()
                     else:
-                        self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] += p_j.item()
+                        self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] += one_class_p.item()
 
                 if not self.one_class_stats_header_printed:
                     print('{},{},{},{},{},{},{}'.format(
@@ -952,7 +990,7 @@ class MultiMLP(nn.Module):
                         'is_nw_trained_on_task_id',
                         'one_class_df',
                         'one_class_y',
-                        'p_j'
+                        'one_class_p'
                     ), file=self.one_class_stats_file, flush=True)
                     self.one_class_stats_header_printed = True
 
@@ -963,7 +1001,7 @@ class MultiMLP(nn.Module):
                     is_nw_trained_on_task_id,
                     one_class_df.item(),
                     one_class_y.item(),
-                    p_j.item()
+                    one_class_p.item()
                 ), file=self.one_class_stats_file, flush=True)
 
     def forward(self, x):
@@ -989,7 +1027,10 @@ class MultiMLP(nn.Module):
                                                                                  self.task_detector_type,
                                                                                  self.frozen_nets)
                     if self.training_exp == self.n_experiences:
-                        self.check_accuracy_of_one_class_classifiers(x, x_flatten)
+                        if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
+                            self.check_accuracy_of_one_class_classifiers(x, x_flatten)
+                        elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
+                            self.check_accuracy_of_nb(x, x_flatten)
 
                 elif self.task_detector_type == PREDICT_METHOD_RANDOM:
                     best_matched_frozen_nn_idx = random.randrange(0, len(self.frozen_nets))
@@ -1056,6 +1097,29 @@ class MultiMLP(nn.Module):
                 self.samples_per_each_task_at_train[true_task_id] += r
 
         use_instances_for_task_detector_training = True if random.randint(0, 0) == 0 else False
+
+        x_or_features = None
+        if use_instances_for_task_detector_training:
+            if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or \
+                    self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
+                if self.train_task_predictor_at_the_end == DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END:
+                    if self.use_static_f_ex:
+                        x_or_features = get_static_features(x, self.f_ex)
+                        if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
+                            self.nb_train(x_or_features, self.detected_task_id)
+                else:  # TRAIN_TASK_PREDICTOR_AT_THE_END
+                    if self.train_task_predictor_at_the_end == WITH_ACCUMULATED_INSTANCES:
+                        x_or_features = x.cpu()
+                    elif self.train_task_predictor_at_the_end == WITH_ACCUMULATED_STATIC_FEATURES:
+                        x_or_features = get_static_features(x, self.f_ex)
+                    if x_or_features is not None:
+                        if self.accumulated_x_or_features[0] is None:
+                            self.accumulated_x_or_features[0] = x_or_features
+                        else:
+                            self.accumulated_x_or_features[0] = torch.cat([self.accumulated_x_or_features[0], x_or_features],
+                                                                          dim=0)
+                    x_or_features = None
+
         t = []
         number_of_mlps_to_train = self.number_of_mlps_to_train
         number_of_top_mlps_to_train = self.number_of_mlps_to_train // 2
@@ -1083,9 +1147,11 @@ class MultiMLP(nn.Module):
                 c = c_flatten
 
             if self.use_threads:
-                t.append(threading.Thread(target=net_train, args=(self.train_nets[nn_index], xx, r, c, y, true_task_id, self.detected_task_id, use_instances_for_task_detector_training, self.use_one_class_probas,)))
+                t.append(threading.Thread(target=net_train, args=(self.train_nets[nn_index], xx, r, c, y, true_task_id, use_instances_for_task_detector_training, self.use_one_class_probas, x_or_features,)))
             else:
-                self.train_nets[nn_index].train_net(xx, y, c, r, true_task_id, self.detected_task_id, use_instances_for_task_detector_training, self.use_one_class_probas)
+                self.train_nets[nn_index].train_net(xx, y, c, r, true_task_id, use_instances_for_task_detector_training,
+                                                    self.use_one_class_probas,
+                                                    x_or_features)
         if self.use_threads:
             for i in range(len(t)):
                 t[i].start()
@@ -1104,17 +1170,7 @@ class MultiMLP(nn.Module):
                 self.reset_one_class_detectors_and_loss_estimators_seen_task_ids()
 
         if (self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_ONE_CLASS) and use_instances_for_task_detector_training:
-            x_or_features = None
-            if self.train_task_predictor_at_the_end == WITH_ACCUMULATED_INSTANCES:
-                x_or_features = x.cpu()
-            elif self.train_task_predictor_at_the_end == WITH_ACCUMULATED_STATIC_FEATURES:
-                x_or_features = get_static_features(x, self.f_ex)
-
-            if x_or_features is not None:
-                if self.accumulated_x_or_features[0] is None:
-                    self.accumulated_x_or_features[0] = x_or_features
-                else:
-                    self.accumulated_x_or_features[0] = torch.cat([self.accumulated_x_or_features[0], x_or_features], dim=0)
+            pass
 
         self.train_nets[nn_with_lowest_loss].chosen_after_train += r
         return self.train_nets[nn_with_lowest_loss].net(
