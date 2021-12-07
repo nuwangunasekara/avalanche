@@ -55,3 +55,4 @@ class TrainPoolPlugin(StrategyPlugin):
     def after_eval(self, strategy: 'BaseStrategy', **kwargs):
         strategy.model.print_stats(dumped_at='after_eval')
         strategy.model.clear_frozen_pool()
+        strategy.model.save_nb_predictions()
