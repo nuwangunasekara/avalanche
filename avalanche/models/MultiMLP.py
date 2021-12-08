@@ -948,7 +948,7 @@ class MultiMLP(nn.Module):
         for i in range(len(x)):
             p = self.nb_predict(x[None, i, :])
 
-            p_row = np.concatenate((p, self.mb_task_id[i].numpy().reshape((1, 1))), axis=1)
+            p_row = np.concatenate((p, self.mb_task_id[i].cpu().numpy().reshape((1, 1))), axis=1)
             if self.nb_preds is None:
                 self.nb_preds = p_row
             else:
