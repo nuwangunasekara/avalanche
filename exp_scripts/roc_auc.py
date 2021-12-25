@@ -117,7 +117,7 @@ def read_file_plot_roc_cur_auc(file_name, ax, title_prefix, numpy_file=False):
                 tpr[i],
                 color=color,
                 lw=lw,
-                label="ROC curve of class {0} (area = {1:0.2f})".format(i, roc_auc[i]),
+                label="ROC curve of task {0} (area = {1:0.2f})".format(i, roc_auc[i]),
             )
 
         ax.plot([0, 1], [0, 1], "k--", lw=lw)
@@ -162,6 +162,7 @@ for d in datasets:
                                shell=True, stdout=subprocess.PIPE)
     for line in command.stdout.readlines():
         f = line.decode("utf-8").replace('\n', '')
+        print(f)
         read_file_plot_roc_cur_auc(f, ax, d, numpy_file=True)
 
     if f is None:
@@ -169,6 +170,7 @@ for d in datasets:
                                    shell=True, stdout=subprocess.PIPE)
         for line in command.stdout.readlines():
             f = line.decode("utf-8").replace('\n', '')
+            print(f)
             read_file_plot_roc_cur_auc(f, ax, d)
 
     rows += 1
