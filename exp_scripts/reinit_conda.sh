@@ -25,7 +25,8 @@ re_init_conda_env ()
 #  echo "Updating conda env $conda_env_path from config $conda_yml_file"
 #  conda env update --prefix $conda_env_path --file $conda_yml_file  --prune
 
-  bash "${avalanche_source_path}/install_environment_dev.sh" --python 3.8 --cuda_version 10.2 --conda_location "$conda_env_path" --yml_file "$conda_yml_file"
+  bash "${avalanche_source_path}/install_environment_dev.sh" --python 3.9 --cuda_version 11.3 --conda_location "$conda_env_path" --yml_file "$conda_yml_file"
+#  bash "${avalanche_source_path}/install_environment_dev.sh" --python 3.8 --cuda_version 10.2 --conda_location "$conda_env_path" --yml_file "$conda_yml_file"
 
   conda activate $conda_env_path
   conda env list
