@@ -485,6 +485,7 @@ class ANN:
             if self.train_task_predictor_at_the_end == DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END:
                 if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
                     if use_static_features:
+                        learned_features = [None]
                         learned_features[0] = static_features
                     self.train_one_class_classifier(learned_features[0].cpu(), use_one_class_probas)
             elif self.train_task_predictor_at_the_end == WITH_ACCUMULATED_LEARNED_FEATURES:
