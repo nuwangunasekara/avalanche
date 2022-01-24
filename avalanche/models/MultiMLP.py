@@ -660,9 +660,10 @@ class MultiMLP(nn.Module):
         # init status variables
 
         self.heading_printed = False
-        self.nb_stats_file = sys.stdout if self.stats_file is sys.stdout else self.stats_file.replace('.csv', '')
-        self.one_class_stats_file = sys.stdout if self.stats_file is sys.stdout else open(
-            self.stats_file.replace('.csv', '_TD.csv'), 'w')
+        self.nb_stats_file = sys.stdout if self.stats_file is sys.stdout else \
+            self.stats_file.replace('.csv', '_NB') if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES else sys.stdout
+        self.one_class_stats_file = sys.stdout if self.stats_file is sys.stdout else \
+            open(self.stats_file.replace('.csv', '_OC.csv'), 'w') if self.task_detector_type == PREDICT_METHOD_ONE_CLASS else sys.stdout
         self.stats_file = sys.stdout if self.stats_file is sys.stdout else open(self.stats_file, 'w')
 
         self.create_nn_pool()
@@ -942,8 +943,9 @@ class MultiMLP(nn.Module):
         self.accumulated_x_or_features = [None]
 
     def save_nb_predictions(self):
-        if self.training_exp == self.n_experiences:
-            np.save(self.nb_stats_file, self.nb_preds)
+        if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
+            if self.training_exp == self.n_experiences:
+                np.save(self.nb_stats_file, self.nb_preds)
 
     def check_accuracy_of_nb(self, x, x_flatten):
         for i in range(len(x)):
@@ -956,55 +958,56 @@ class MultiMLP(nn.Module):
                 self.nb_preds = np.concatenate((self.nb_preds, p_row))
 
     def check_accuracy_of_one_class_classifiers(self, x, x_flatten):
-        for i in range(len(x)):
-            task_id = self.mb_task_id[i].item()
-            if self.instances_per_task_at_last.get(task_id) is None:
-                self.instances_per_task_at_last[task_id] = 1
-            else:
-                self.instances_per_task_at_last[task_id] += 1
-            for j in range(len(self.frozen_nets)):
-                is_nw_trained_on_task_id = 0 if self.frozen_nets[j].seen_task_ids_train.get(task_id) is None else 1
+        if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
+            for i in range(len(x)):
+                task_id = self.mb_task_id[i].item()
+                if self.instances_per_task_at_last.get(task_id) is None:
+                    self.instances_per_task_at_last[task_id] = 1
+                else:
+                    self.instances_per_task_at_last[task_id] += 1
+                for j in range(len(self.frozen_nets)):
+                    is_nw_trained_on_task_id = 0 if self.frozen_nets[j].seen_task_ids_train.get(task_id) is None else 1
 
-                one_class_df, one_class_y, one_class_p = self.get_one_class_probas_for_nn(
-                    x[None, i, :],
-                    x_flatten[None, i, :],
-                    self.frozen_nets[j],
-                    self.f_ex if self.use_static_f_ex else None)
-                # get in-class or not
-                if one_class_y is not None and one_class_y.item() > 0.0:
-                    self.correct_network_selected_count_at_last += 1
-                    if self.frozen_nets[j].correctly_predicted_task_ids_test_at_last.get(task_id) is None:
-                        self.frozen_nets[j].correctly_predicted_task_ids_test_at_last[task_id] = 1
-                    else:
-                        self.frozen_nets[j].correctly_predicted_task_ids_test_at_last[task_id] += 1
-                # get probas
-                if one_class_p is not None and one_class_p.item() > 0.0:
-                    if self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last.get(task_id) is None:
-                        self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] = one_class_p.item()
-                    else:
-                        self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] += one_class_p.item()
+                    one_class_df, one_class_y, one_class_p = self.get_one_class_probas_for_nn(
+                        x[None, i, :],
+                        x_flatten[None, i, :],
+                        self.frozen_nets[j],
+                        self.f_ex if self.use_static_f_ex else None)
+                    # get in-class or not
+                    if one_class_y is not None and one_class_y.item() > 0.0:
+                        self.correct_network_selected_count_at_last += 1
+                        if self.frozen_nets[j].correctly_predicted_task_ids_test_at_last.get(task_id) is None:
+                            self.frozen_nets[j].correctly_predicted_task_ids_test_at_last[task_id] = 1
+                        else:
+                            self.frozen_nets[j].correctly_predicted_task_ids_test_at_last[task_id] += 1
+                    # get probas
+                    if one_class_p is not None and one_class_p.item() > 0.0:
+                        if self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last.get(task_id) is None:
+                            self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] = one_class_p.item()
+                        else:
+                            self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] += one_class_p.item()
 
-                if not self.one_class_stats_header_printed:
+                    if not self.one_class_stats_header_printed:
+                        print('{},{},{},{},{},{},{}'.format(
+                            'task_id',
+                            'nw_id',
+                            'frozen_id',
+                            'is_nw_trained_on_task_id',
+                            'one_class_df',
+                            'one_class_y',
+                            'one_class_p'
+                        ), file=self.one_class_stats_file, flush=True)
+                        self.one_class_stats_header_printed = True
+
                     print('{},{},{},{},{},{},{}'.format(
-                        'task_id',
-                        'nw_id',
-                        'frozen_id',
-                        'is_nw_trained_on_task_id',
-                        'one_class_df',
-                        'one_class_y',
-                        'one_class_p'
+                        task_id,
+                        self.frozen_nets[j].id,
+                        self.frozen_nets[j].frozen_id,
+                        is_nw_trained_on_task_id,
+                        one_class_df.item(),
+                        one_class_y.item(),
+                        one_class_p.item()
                     ), file=self.one_class_stats_file, flush=True)
-                    self.one_class_stats_header_printed = True
-
-                print('{},{},{},{},{},{},{}'.format(
-                    task_id,
-                    self.frozen_nets[j].id,
-                    self.frozen_nets[j].frozen_id,
-                    is_nw_trained_on_task_id,
-                    one_class_df.item(),
-                    one_class_y.item(),
-                    one_class_p.item()
-                ), file=self.one_class_stats_file, flush=True)
 
     def forward(self, x):
         r = x.shape[0]
