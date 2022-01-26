@@ -109,23 +109,24 @@ def read_file_plot_roc_cur_auc(file_name, ax, title_prefix, numpy_file=False):
             linestyle=":",
             linewidth=4,
         )
-
-        colors = cycle(["aqua", "darkorange", "cornflowerblue", "red", "green", "blue", "pink", "yellow", "grey", "darkgreen", "brown"])
-        for i, color in zip(range(n_classes), colors):
-            ax.plot(
-                fpr[i],
-                tpr[i],
-                color=color,
-                lw=lw,
-                label="ROC curve of task {0} (area = {1:0.2f})".format(i, roc_auc[i]),
-            )
+        # print ROC for each one class task detector
+        # colors = cycle(["aqua", "darkorange", "cornflowerblue", "red", "green", "blue", "pink", "yellow", "grey", "darkgreen", "brown"])
+        # for i, color in zip(range(n_classes), colors):
+        #     ax.plot(
+        #         fpr[i],
+        #         tpr[i],
+        #         color=color,
+        #         lw=lw,
+        #         label="ROC curve of task {0} (area = {1:0.2f})".format(i, roc_auc[i]),
+        #     )
 
         ax.plot([0, 1], [0, 1], "k--", lw=lw)
         ax.set_xlim([0.0, 1.0])
         ax.set_ylim([0.0, 1.05])
         ax.set_xlabel("False Positive Rate")
         ax.set_ylabel("True Positive Rate")
-        ax.set_title("Some extension of Receiver operating characteristic to multiclass")
+        ax.set_title('{}: ROC Curve. AUC micro = {} macro = {}'.format(title_prefix, round(roc_auc["micro"],3), round(roc_auc["macro"],3)))
+        # ax.set_title("Some extension of Receiver operating characteristic to multiclass")
         ax.legend(loc="lower right")
     else:
         df = pd.read_csv(file_name)
@@ -158,7 +159,7 @@ col = 0
 for d in datasets:
     ax = fig.add_subplot(gs[rows, col], label=d)
     f = None
-    command = subprocess.Popen("find " + args.resultsDir + " -iname '*_Nets_NB.npy' | grep " + d,
+    command = subprocess.Popen("find " + args.resultsDir + " -iname '*_Nets.npy' | grep " + d,
                                shell=True, stdout=subprocess.PIPE)
     for line in command.stdout.readlines():
         f = line.decode("utf-8").replace('\n', '')
@@ -166,7 +167,7 @@ for d in datasets:
         read_file_plot_roc_cur_auc(f, ax, d, numpy_file=True)
 
     if f is None:
-        command = subprocess.Popen("find " + args.resultsDir + " -iname '*Nets_OC.csv' | grep " + d,
+        command = subprocess.Popen("find " + args.resultsDir + " -iname '*Nets_TD.csv' | grep " + d,
                                    shell=True, stdout=subprocess.PIPE)
         for line in command.stdout.readlines():
             f = line.decode("utf-8").replace('\n', '')
