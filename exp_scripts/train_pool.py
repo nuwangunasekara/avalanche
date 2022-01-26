@@ -168,7 +168,6 @@ def main(args):
             shutil.rmtree(model_dump_dir)
         os.mkdir(model_dump_dir)
 
-        use_static_f_ex = False
         train_task_predictor_at_the_end = DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END
         if args.train_task_predictor_at_the_end == 'DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END':
             train_task_predictor_at_the_end = DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END
@@ -178,7 +177,7 @@ def main(args):
             train_task_predictor_at_the_end = WITH_ACCUMULATED_LEARNED_FEATURES
         elif args.train_task_predictor_at_the_end == 'WITH_ACCUMULATED_STATIC_FEATURES':
             train_task_predictor_at_the_end = WITH_ACCUMULATED_STATIC_FEATURES
-            use_static_f_ex = True
+            args.use_static_f_ex = True
 
         model = MultiMLP(
             num_classes=scenario.n_classes,
@@ -197,7 +196,7 @@ def main(args):
             use_weights_from_task_detectors=args.use_weights_from_task_detectors,
             auto_detect_tasks=args.auto_detect_tasks,
             n_experiences=scenario.n_experiences,
-            use_static_f_ex=use_static_f_ex)
+            use_static_f_ex=args.use_static_f_ex)
         optimizer = None
 
     criterion = torch.nn.CrossEntropyLoss()
@@ -358,6 +357,13 @@ if __name__ == '__main__':
     parser.add_argument('--no-auto_detect_tasks', dest='auto_detect_tasks',
                         action='store_false')
     parser.set_defaults(auto_detect_tasks=False)
+
+    # use_static_f_ex
+    parser.add_argument('--use_static_f_ex', dest='use_static_f_ex',
+                        action='store_true')
+    parser.add_argument('--no-use_static_f_ex', dest='use_static_f_ex',
+                        action='store_false')
+    parser.set_defaults(use_static_f_ex=False)
 
     args = parser.parse_args()
 
