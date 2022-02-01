@@ -133,9 +133,9 @@ for d in datasets:
     for e in experiences:
         ax = fig.add_subplot(gs[rows, col], label=d)
         if d == datasets[0]:
-            ax.set_title('after training\n on ' + str(int(e)))
+            ax.set_title('task ' + str(int(e)))
         if d == datasets[len(datasets)-1]:
-            ax.set_xlabel('eval task id')
+            ax.set_xlabel('after training task')
         if last_d != d:
             ax.set_ylabel(d + 'acc')
         last_d = d
@@ -152,7 +152,7 @@ for d in datasets:
                     continue
 
                 p_df = df_all.query(
-                    'dataset .str.contains("' + d + '") and strategy.str.contains("' + s + '") and sub_strategy.str.contains("' + sub_s +'") and training_exp == ' + str(e), engine='python')
+                    'dataset .str.contains("' + d + '") and strategy.str.contains("' + s + '") and sub_strategy.str.contains("' + sub_s +'") and eval_exp == ' + str(e), engine='python')
 
                 label = s + sub_s
                 line_type = line[0]
@@ -165,9 +165,9 @@ for d in datasets:
                 color = colors[sub_s] if s == 'TrainPool' else colors[s]
 
                 # exps = p_df['training_exp'].unique()
-                exps = p_df['eval_exp'].unique()
+                exps = p_df['training_exp'].unique()
                 # p_df_avg_eval_acc_for_exp = p_df.groupby(['training_exp'])['eval_accuracy'].mean()
-                p_df_avg_eval_acc_for_exp = p_df.groupby(['eval_exp'])['eval_accuracy'].mean()
+                p_df_avg_eval_acc_for_exp = p_df.groupby(['training_exp'])['eval_accuracy'].mean()
 
                 ax.plot(exps, p_df_avg_eval_acc_for_exp, label=label, color=color, linestyle=line_type, marker=".")
                 ax.plot(exps, np.ones(len(exps)) * p_df_avg_eval_acc_for_exp.mean(), label=label+'_avg', color=color, linestyle='dotted')
