@@ -19,7 +19,7 @@ mini_batch_size='16'
 tp_pool_type='6CNN'
 tp_number_of_nns_to_train='6'
 tp_predict_methods_array=('ONE_CLASS' 'ONE_CLASS_end' 'MAJORITY_VOTE' 'RANDOM' 'NAIVE_BAYES' 'NAIVE_BAYES_end' 'TASK_ID_KNOWN')
-tp_predict_methods_array=('NAIVE_BAYES' 'ONE_CLASS')
+tp_predict_methods_array=('ONE_CLASS_end')
 #tp_reset_tp='reset'
 tp_reset_tp='no_reset'
 #tp_use_one_class_probas='no_use_probas'
@@ -29,9 +29,9 @@ tp_use_weights_from_task_detectors='use_weights'
 tp_auto_detect_tasks='no_detect'
 #tp_auto_detect_tasks='detect'
 # DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END, WITH_ACCUMULATED_INSTANCES, WITH_ACCUMULATED_LEARNED_FEATURES, WITH_ACCUMULATED_STATIC_FEATURES
-train_task_predictor_at_the_end_default='DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END'
+train_task_predictor_at_the_end_default='WITH_ACCUMULATED_STATIC_FEATURES'
 
-# exp/scripts/train_pool.py sets internal variable use_static_f_ex to True if train_task_predictor_at_the_end='WITH_ACCUMULATED_STATIC_FEATURES'
+# exp/scripts/train_pool.py sets internal variable use_static_f_ex to True if train_task_predictor_at_the_end_default='WITH_ACCUMULATED_STATIC_FEATURES'
 # But it is best to set it externally via --use_static_f_ex
 tp_use_static_f_ex='no-use_static_f_ex'
 tp_use_static_f_ex='use_static_f_ex'
@@ -112,13 +112,13 @@ do
             ONE_CLASS)
               ;;
             ONE_CLASS_end)
-              tp_train_task_p_at_end_type="${train_task_predictor_at_the_end}"
+#              tp_train_task_p_at_end_type="${train_task_predictor_at_the_end}"
               tp_p_method='ONE_CLASS'
               ;;
             NAIVE_BAYES)
               ;;
             NAIVE_BAYES_end)
-              tp_train_task_p_at_end_type="${train_task_predictor_at_the_end}"
+#              tp_train_task_p_at_end_type="${train_task_predictor_at_the_end}"
               tp_p_method='NAIVE_BAYES'
               ;;
             *)
