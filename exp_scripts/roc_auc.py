@@ -159,7 +159,7 @@ col = 0
 for d in datasets:
     ax = fig.add_subplot(gs[rows, col], label=d)
     f = None
-    command = subprocess.Popen("find " + args.resultsDir + " -iname '*_Nets.npy' | grep " + d,
+    command = subprocess.Popen("find " + args.resultsDir + " -iname '*_Nets_NB.npy' | grep " + d,
                                shell=True, stdout=subprocess.PIPE)
     for line in command.stdout.readlines():
         f = line.decode("utf-8").replace('\n', '')
@@ -167,7 +167,7 @@ for d in datasets:
         read_file_plot_roc_cur_auc(f, ax, d, numpy_file=True)
 
     if f is None:
-        command = subprocess.Popen("find " + args.resultsDir + " -iname '*Nets_TD.csv' | grep " + d,
+        command = subprocess.Popen("find " + args.resultsDir + " -iname '*Nets_OC.csv' | grep " + d,
                                    shell=True, stdout=subprocess.PIPE)
         for line in command.stdout.readlines():
             f = line.decode("utf-8").replace('\n', '')
