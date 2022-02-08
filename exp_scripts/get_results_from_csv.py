@@ -43,7 +43,7 @@ for csv_file in csv_files:
     if exp_info.find('NAIVE_BAYES_end') >= 0 or exp_info.find('ONE_CLASS_end') >= 0:
         initial_pattern = 'ONE_CLASS_end|NAIVE_BAYES_end'
     else:
-        initial_pattern = 'ONE_CLASS|NAIVE_BAYES'
+        initial_pattern = 'ONE_CLASS|NAIVE_BAYES|HT'
     match = re.search('(' + initial_pattern + '|MAJORITY_VOTE|RANDOM|TASK_ID_KNOWN|SimpleCNN|CNN4)(.*)', exp_info)
     if match:
         sub_strategy = match.group(1)
@@ -119,6 +119,7 @@ colors = {'EWC': 'black',
           'MAJORITY_VOTE': 'darkorange',
           'NAIVE_BAYES': 'greenyellow',
           'NAIVE_BAYES_end': 'forestgreen',
+          'HT': 'teal',
           'ONE_CLASS': 'dodgerblue',
           'ONE_CLASS_end': 'blue',
           'RANDOM': 'gold',

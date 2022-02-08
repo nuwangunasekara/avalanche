@@ -6,7 +6,7 @@ print_usage()
 }
 cuda='0'
 clean_dir="TRUE"
-clean_dir="FALSE"
+#clean_dir="FALSE"
 
 dataset=(LED_a RotatedMNIST RotatedCIFAR10 CORe50)
 dataset=(CORe50 RotatedMNIST RotatedCIFAR10)
@@ -18,8 +18,8 @@ mini_batch_size='16'
 
 tp_pool_type='6CNN'
 tp_number_of_nns_to_train='6'
-tp_predict_methods_array=('ONE_CLASS' 'ONE_CLASS_end' 'MAJORITY_VOTE' 'RANDOM' 'NAIVE_BAYES' 'NAIVE_BAYES_end' 'TASK_ID_KNOWN')
-tp_predict_methods_array=('ONE_CLASS_end')
+tp_predict_methods_array=('ONE_CLASS' 'ONE_CLASS_end' 'MAJORITY_VOTE' 'RANDOM' 'NAIVE_BAYES' 'NAIVE_BAYES_end' 'TASK_ID_KNOWN' 'HT')
+tp_predict_methods_array=('HT')
 #tp_reset_tp='reset'
 tp_reset_tp='no_reset'
 #tp_use_one_class_probas='no_use_probas'
@@ -29,12 +29,18 @@ tp_use_weights_from_task_detectors='use_weights'
 tp_auto_detect_tasks='no_detect'
 #tp_auto_detect_tasks='detect'
 # DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END, WITH_ACCUMULATED_INSTANCES, WITH_ACCUMULATED_LEARNED_FEATURES, WITH_ACCUMULATED_STATIC_FEATURES
-train_task_predictor_at_the_end_default='WITH_ACCUMULATED_STATIC_FEATURES'
+train_task_predictor_at_the_end_default='DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END'
 
 # exp/scripts/train_pool.py sets internal variable use_static_f_ex to True if train_task_predictor_at_the_end_default='WITH_ACCUMULATED_STATIC_FEATURES'
 # But it is best to set it externally via --use_static_f_ex
 tp_use_static_f_ex='no-use_static_f_ex'
 tp_use_static_f_ex='use_static_f_ex'
+
+tp_train_nn_using_ex_static_f='no-train_nn_using_ex_static_f'
+#tp_train_nn_using_ex_static_f='train_nn_using_ex_static_f'
+
+tp_train_only_the_best_nn='no-train_only_the_best_nn'
+#tp_train_only_the_best_nn='train_only_the_best_nn'
 
 model='SimpleCNN'
 model='CNN4'
@@ -155,8 +161,20 @@ do
             tp_use_static_f_ex_cmd='--no-use_static_f_ex'
           fi
 
-          command_args="${command_args} --module MultiMLP --pool_type ${tp_pool_type} --number_of_mpls_to_train ${tp_number_of_nns_to_train} --skip_back_prop_threshold 0.0 --task_detector_type ${tp_p_method} ${tp_reset_tp_cmd} ${tp_use_one_class_probas_cmd} ${tp_use_weights_from_task_detectors_cmd} ${tp_auto_detect_tasks_cmd} --train_task_predictor_at_the_end ${tp_train_task_p_at_end_type} ${tp_use_static_f_ex_cmd}"
-          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_number_of_nns_to_train}_${tp_predict_method}_${tp_reset_tp}_${tp_use_one_class_probas}_${tp_use_weights_from_task_detectors}_${tp_auto_detect_tasks}_${tp_train_task_p_at_end_type}_${tp_use_static_f_ex}"
+          if [ "${tp_train_nn_using_ex_static_f}" == "train_nn_using_ex_static_f" ]; then
+            tp_train_nn_using_ex_static_f_cmd='--train_nn_using_ex_static_f'
+          else
+            tp_train_nn_using_ex_static_f_cmd='--no-train_nn_using_ex_static_f'
+          fi
+
+          if [ "${tp_train_only_the_best_nn}" == "train_only_the_best_nn" ]; then
+            tp_train_only_the_best_nn_cmd='--train_only_the_best_nn'
+          else
+            tp_train_only_the_best_nn_cmd='--no-train_only_the_best_nn'
+          fi
+
+          command_args="${command_args} --module MultiMLP --pool_type ${tp_pool_type} --number_of_mpls_to_train ${tp_number_of_nns_to_train} --skip_back_prop_threshold 0.0 --task_detector_type ${tp_p_method} ${tp_reset_tp_cmd} ${tp_use_one_class_probas_cmd} ${tp_use_weights_from_task_detectors_cmd} ${tp_auto_detect_tasks_cmd} --train_task_predictor_at_the_end ${tp_train_task_p_at_end_type} ${tp_use_static_f_ex_cmd} ${tp_train_nn_using_ex_static_f_cmd} ${tp_train_only_the_best_nn_cmd}"
+          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_number_of_nns_to_train}_${tp_predict_method}_${tp_reset_tp}_${tp_use_one_class_probas}_${tp_use_weights_from_task_detectors}_${tp_auto_detect_tasks}_${tp_train_task_p_at_end_type}_${tp_use_static_f_ex}_${tp_train_nn_using_ex_static_f}_${tp_train_only_the_best_nn}"
           ;;
         *)
           command_args=""

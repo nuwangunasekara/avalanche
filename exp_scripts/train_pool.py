@@ -3,17 +3,19 @@ import shutil
 
 from avalanche.benchmarks import *
 from avalanche.benchmarks.classic.ccifar10 import RotatedCIFAR10_di
+from avalanche.benchmarks.classic.stream51 import CLStream51
 
 from avalanche.training.strategies import *
 from avalanche.models import *
 from avalanche.models.MultiMLP import SimpleCNN, CNN4
 from avalanche.models.MultiMLP import PREDICT_METHOD_ONE_CLASS, PREDICT_METHOD_MAJORITY_VOTE, PREDICT_METHOD_RANDOM, \
-    PREDICT_METHOD_TASK_ID_KNOWN, PREDICT_METHOD_NW_CONFIDENCE, PREDICT_METHOD_NAIVE_BAYES
+    PREDICT_METHOD_TASK_ID_KNOWN, PREDICT_METHOD_NW_CONFIDENCE, PREDICT_METHOD_NAIVE_BAYES, PREDICT_METHOD_HT
 from avalanche.models.MultiMLP import DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END, WITH_ACCUMULATED_INSTANCES, \
     WITH_ACCUMULATED_LEARNED_FEATURES, WITH_ACCUMULATED_STATIC_FEATURES
 from avalanche.evaluation.metrics import *
 from avalanche.logging import InteractiveLogger, TextLogger, TensorboardLogger, CSVLogger
 from avalanche.training.plugins import EvaluationPlugin
+from avalanche.training.plugins import ReplayPlugin
 
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -125,6 +127,12 @@ def main(args):
         input_size = 3 * 32 * 32
         num_channels = 3
         scenario.n_classes = 10
+    elif args.dataset == 'CLStream51':
+        # scenario = CLStream51(scenario='instance', seed=10, eval_num=3000)
+        # input_size = 3 * 32 * 32
+        # num_channels = 3
+        # scenario.n_classes = 10
+        pass
 
     # for step in scenario.train_stream:
     #     data = step.dataset
@@ -162,6 +170,8 @@ def main(args):
             predict_method = PREDICT_METHOD_NW_CONFIDENCE
         elif args.task_detector_type == 'NAIVE_BAYES':
             predict_method = PREDICT_METHOD_NAIVE_BAYES
+        elif args.task_detector_type == 'HT':
+            predict_method = PREDICT_METHOD_HT
 
         model_dump_dir = os.path.join(args.base_dir + '/logs/exp_logs/', args.log_file_name + '_f_pool')
         if os.path.isdir(model_dump_dir):
@@ -196,7 +206,9 @@ def main(args):
             use_weights_from_task_detectors=args.use_weights_from_task_detectors,
             auto_detect_tasks=args.auto_detect_tasks,
             n_experiences=scenario.n_experiences,
-            use_static_f_ex=args.use_static_f_ex)
+            use_static_f_ex=args.use_static_f_ex,
+            train_nn_using_ex_static_f=args.train_nn_using_ex_static_f,
+            train_only_the_best_nn=args.train_only_the_best_nn)
         optimizer = None
 
     criterion = torch.nn.CrossEntropyLoss()
@@ -226,6 +238,7 @@ def main(args):
     if args.strategy == 'TrainPool':
         strategy = TrainPool(model, optimizer, criterion,
                              train_epochs=args.epochs, device=device, train_mb_size=args.minibatch_size,
+                             # plugins=[ReplayPlugin(mem_size=1000)],
                              evaluator=eval_plugin)
     elif args.strategy == 'LwF':
         assert len(args.lwf_alpha) == 1 or len(args.lwf_alpha) == 5, \
@@ -311,7 +324,7 @@ if __name__ == '__main__':
                         help='Pool type for MultiMLP.')
     parser.add_argument('--task_detector_type', type=str, default='ONE_CLASS',
                         choices=['ONE_CLASS', 'MAJORITY_VOTE', 'RANDOM', 'TASK_ID_KNOWN', 'NW_CONFIDENCE',
-                                 'NAIVE_BAYES'],
+                                 'NAIVE_BAYES', 'HT'],
                         help='Prediction method for MultiMLP: '
                              'ONE_CLASS, MAJORITY_VOTE, RANDOM, TASK_ID_KNOWN, NW_CONFIDENCE or NAIVE_BAYES.')
     parser.add_argument('--skip_back_prop_threshold', type=float, default=0.0,
@@ -364,6 +377,20 @@ if __name__ == '__main__':
     parser.add_argument('--no-use_static_f_ex', dest='use_static_f_ex',
                         action='store_false')
     parser.set_defaults(use_static_f_ex=False)
+
+    # train_nn_using_ex_static_f
+    parser.add_argument('--train_nn_using_ex_static_f', dest='train_nn_using_ex_static_f',
+                        action='store_true')
+    parser.add_argument('--no-train_nn_using_ex_static_f', dest='train_nn_using_ex_static_f',
+                        action='store_false')
+    parser.set_defaults(train_nn_using_ex_static_f=False)
+
+    # train_only_the_best_nn
+    parser.add_argument('--train_only_the_best_nn', dest='train_only_the_best_nn',
+                        action='store_true')
+    parser.add_argument('--no-train_only_the_best_nn', dest='train_only_the_best_nn',
+                        action='store_false')
+    parser.set_defaults(train_only_the_best_nn=False)
 
     args = parser.parse_args()
 

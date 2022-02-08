@@ -15,6 +15,7 @@ from joblib import dump, load
 from skmultiflow.drift_detection.base_drift_detector import BaseDriftDetector
 from skmultiflow.drift_detection import ADWIN
 from skmultiflow.bayes import NaiveBayes
+from skmultiflow.trees import HoeffdingTreeClassifier
 
 import torch
 import torch.nn as nn
@@ -51,12 +52,14 @@ PREDICT_METHOD_RANDOM = 2
 PREDICT_METHOD_TASK_ID_KNOWN = 3
 PREDICT_METHOD_NW_CONFIDENCE = 4
 PREDICT_METHOD_NAIVE_BAYES = 5
+PREDICT_METHOD_HT = 6
 
 DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END = -1
 WITH_ACCUMULATED_INSTANCES = 0
 WITH_ACCUMULATED_LEARNED_FEATURES = 1
 WITH_ACCUMULATED_STATIC_FEATURES = 2
 
+NO_OF_CHANNELS = 3
 
 def create_static_feature_extractor():
     # https://keras.io/api/applications/
@@ -127,12 +130,18 @@ preprocessor = transforms.Compose([
     # https://discuss.pytorch.org/t/grayscale-to-rgb-transform/18315/9
     # expand channels
     # transforms.Lambda(lambda x: x.repeat(3, 1, 1)) if len(x.shape) < 4 else NoneTransform(),
-    transforms.Lambda(lambda x: x.repeat(1, 3, 1, 1)), # repeat channel 1, 3 times
+    transforms.Lambda(lambda x: x.repeat(1, NO_OF_CHANNELS, 1, 1)), # repeat channel 1, 3 times
     transforms.Resize(256),
     transforms.CenterCrop(224),
     # transforms.Pad(0, fill=3),
     # transforms.ToTensor(),
     # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
+
+repeat_channel_1 = transforms.Compose([
+    # https://discuss.pytorch.org/t/grayscale-to-rgb-transform/18315/9
+    # expand channels
+    transforms.Lambda(lambda x: x.repeat(1, NO_OF_CHANNELS, 1, 1)), # repeat channel 1, 3 times
 ])
 
 
@@ -142,6 +151,7 @@ def get_static_features(x, feature_extractor):
     x = x.to(device)
     if x.shape[1] < 3: # has les than 3 channels
         preprocessed_x = preprocessor(x) # repeat channel 1
+        # preprocessed_x = x
     else:
         preprocessed_x = x
     return feature_extractor(preprocessed_x).cpu()
@@ -149,7 +159,7 @@ def get_static_features(x, feature_extractor):
 
 class SimpleCNN(nn.Module):
 
-    def __init__(self, num_classes=10, num_channels=0):
+    def __init__(self, num_classes=10, num_channels=NO_OF_CHANNELS):
         super(SimpleCNN, self).__init__()
 
         self.features = nn.Sequential(
@@ -237,55 +247,55 @@ class CNN4(nn.Module):
         return x
 
 
-class PyNet(nn.Module):
-    def __init__(self, hidden_layers: list = None, num_classes: int = None, input_dimensions=None):
-        super(PyNet, self).__init__()
-
-        if hidden_layers is None:
-            return
-        linear = []
-        self.f = []
-
-        # Add hidden layers
-        for h in range(0, len(hidden_layers), 1):
-            if h == 0:  # first hidden layer
-                in_d = input_dimensions
-                nonlinearity = Relu
-            else:
-                in_d = hidden_layers[h - 1]['neurons']
-                nonlinearity = hidden_layers[h]['nonlinearity']
-            out_d = hidden_layers[h]['neurons']
-            linear.append(nn.Linear(in_d, out_d))
-            if nonlinearity == Tanh:
-                self.f.append(nn.Tanh())
-            elif nonlinearity == Sigmoid:
-                self.f.append(nn.Sigmoid())
-            elif nonlinearity == Relu:
-                self.f.append(nn.ReLU())
-            elif nonlinearity == LeakyRelu:
-                self.f.append(nn.LeakyReLU())
-            else:
-                pass
-
-        # output layer
-        linear.append(nn.Linear(hidden_layers[len(hidden_layers) - 1]['neurons'], num_classes))
-        # self.f.append(nn.ReLU())
-
-        self.linear = nn.ModuleList(linear)
-
-    def forward(self, X, learned_features=None):
-        if learned_features:
-            # pass learned features from last layer
-            if learned_features[0] is None:
-                learned_features[0] = X.detach()
-
-        x = X
-        for i, l in enumerate(self.linear):
-            if i == len(self.linear) - 1:
-                x = l(x)
-            else:
-                x = self.f[i](l(x))
-        return x
+# class PyNet(nn.Module):
+#     def __init__(self, hidden_layers: list = None, num_classes: int = None, input_dimensions=None):
+#         super(PyNet, self).__init__()
+#
+#         if hidden_layers is None:
+#             return
+#         linear = []
+#         self.f = []
+#
+#         # Add hidden layers
+#         for h in range(0, len(hidden_layers), 1):
+#             if h == 0:  # first hidden layer
+#                 in_d = input_dimensions
+#                 nonlinearity = Relu
+#             else:
+#                 in_d = hidden_layers[h - 1]['neurons']
+#                 nonlinearity = hidden_layers[h]['nonlinearity']
+#             out_d = hidden_layers[h]['neurons']
+#             linear.append(nn.Linear(in_d, out_d))
+#             if nonlinearity == Tanh:
+#                 self.f.append(nn.Tanh())
+#             elif nonlinearity == Sigmoid:
+#                 self.f.append(nn.Sigmoid())
+#             elif nonlinearity == Relu:
+#                 self.f.append(nn.ReLU())
+#             elif nonlinearity == LeakyRelu:
+#                 self.f.append(nn.LeakyReLU())
+#             else:
+#                 pass
+#
+#         # output layer
+#         linear.append(nn.Linear(hidden_layers[len(hidden_layers) - 1]['neurons'], num_classes))
+#         # self.f.append(nn.ReLU())
+#
+#         self.linear = nn.ModuleList(linear)
+#
+#     def forward(self, X, learned_features=None):
+#         if learned_features:
+#             # pass learned features from last layer
+#             if learned_features[0] is None:
+#                 learned_features[0] = X.detach()
+#
+#         x = X
+#         for i, l in enumerate(self.linear):
+#             if i == len(self.linear) - 1:
+#                 x = l(x)
+#             else:
+#                 x = self.f[i](l(x))
+#         return x
 
 
 def init_one_class_detector():
@@ -347,7 +357,7 @@ class ANN:
         self.scaler = None
         self.logistic_regression = None
         self.correct_class_predicted = 0
-        self.input_dimensions = 0
+        # self.input_dimensions = 0
         self.x_shape = None
         self.task_detected = False
         self.seen_task_ids_train = {}
@@ -373,7 +383,7 @@ class ANN:
         self.scaler = init_scaler()
         self.logistic_regression = init_logistic_regression()
         self.correct_class_predicted = 0
-        self.input_dimensions = 0
+        # self.input_dimensions = 0
         self.x_shape = None
         self.task_detected = False
         self.seen_task_ids_train = {}
@@ -429,15 +439,16 @@ class ANN:
 
     def initialize_network(self):
         if self.network_type == NETWORK_TYPE_CNN:
-            number_of_channels = 0
             if len(self.x_shape) == 2:
                 number_of_channels = 0
+                # number_of_channels = self.x_shape[1]
             else:
                 number_of_channels = self.x_shape[1]
             self.net = SimpleCNN(num_channels=number_of_channels)
         else:
-            self.net = PyNet(hidden_layers=self.hidden_layers_for_MLP, num_classes=self.num_classes,
-                             input_dimensions=self.input_dimensions)
+            pass
+            # self.net = PyNet(hidden_layers=self.hidden_layers_for_MLP, num_classes=self.num_classes,
+            #                  input_dimensions=self.x_shape[0])
         self.initialize_net_para()
 
     def train_one_class_classifier(self, features, train_logistic_regression):
@@ -449,10 +460,14 @@ class ANN:
         self.one_class_detector_fit_called = True
 
     def train_net(self, x, y, c, r, true_task_id, use_instances_for_task_detector_training,
-                  use_one_class_probas, static_features):
+                  use_one_class_probas, static_features=None, train_nn_using_ex_static_f=False):
+        if train_nn_using_ex_static_f and static_features is not None:
+            xx = repeat_channel_1(static_features.view(static_features.shape[0], 64, -1)[:, None, :, :])
+        else:
+            xx = x
         if self.net is None:
-            self.input_dimensions = c
-            self.x_shape = deepcopy(x.shape)
+            # self.input_dimensions = c
+            self.x_shape = deepcopy(xx.shape)
             self.initialize_network()
 
         self.samples_seen_at_train += r
@@ -462,7 +477,7 @@ class ANN:
         else:
             self.seen_task_ids_train[true_task_id] += r
 
-        x = x.to(self.device)
+        xx = xx.to(self.device)
         y = y.to(self.device)
 
         self.optimizer.zero_grad()  # zero the gradient buffers
@@ -479,7 +494,7 @@ class ANN:
                 elif self.train_task_predictor_at_the_end == WITH_ACCUMULATED_LEARNED_FEATURES:
                     learned_features = [None]  # get learned features
 
-        outputs = self.net(x, learned_features=learned_features)  # trains nn and fills learned_features if necessary
+        outputs = self.net(xx, learned_features=learned_features)  # trains nn and fills learned_features if necessary
 
         if use_instances_for_task_detector_training:
             if self.train_task_predictor_at_the_end == DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END:
@@ -514,9 +529,12 @@ class ANN:
 
         return outputs
 
-    def get_votes(self, x, x_flatten):
+    def get_votes(self, x, x_flatten, static_features=None):
         if self.network_type == NETWORK_TYPE_CNN:
-            xx = x
+            if static_features is not None:
+                xx = repeat_channel_1(static_features.view(static_features.shape[0], 64, -1)[:, None, :, :])
+            else:
+                xx = x
         else:
             xx = x_flatten
         return self.net(xx).unsqueeze(0)
@@ -546,9 +564,12 @@ def flatten_dimensions(mb_x):
 def net_train(net: ANN, x: np.ndarray, r, c, y: np.ndarray, true_task_id,
               use_instances_for_task_detector_training,
               use_one_class_probas,
-              static_features):
+              static_features,
+              train_nn_using_ex_static_f):
     net.train_net(x, y, c, r, true_task_id,use_instances_for_task_detector_training,
-                  use_one_class_probas, static_features)
+                  use_one_class_probas,
+                  static_features=static_features,
+                  train_nn_using_ex_static_f=train_nn_using_ex_static_f)
 
 
 def save_model(best_model: ANN, abstract_model_file_name, nn_model_file_name, preserve_net=False):
@@ -601,7 +622,9 @@ class MultiMLP(nn.Module):
                  use_weights_from_task_detectors=False,
                  auto_detect_tasks=False,
                  n_experiences=None,
-                 use_static_f_ex=False):
+                 use_static_f_ex=False,
+                 train_nn_using_ex_static_f=True,
+                 train_only_the_best_nn=False):
         super().__init__()
 
         # configuration variables (which has the same name as init parameters)
@@ -628,6 +651,8 @@ class MultiMLP(nn.Module):
         self.one_class_stats_file = sys.stdout
         self.one_class_stats_header_printed = False
         self.nb_stats_file = sys.stdout
+        self.train_nn_using_ex_static_f = train_nn_using_ex_static_f
+        self.train_only_the_best_nn = train_only_the_best_nn
 
         # status variables
         self.train_nets = []  # type: List[ANN]
@@ -651,7 +676,7 @@ class MultiMLP(nn.Module):
         # self.learned_tasks = [0]
         self.instances_per_task_at_last = {}
         self.f_ex = create_static_feature_extractor()
-        self.nb = NaiveBayes()
+        self.nb = NaiveBayes() if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES else HoeffdingTreeClassifier() if self.task_detector_type == PREDICT_METHOD_HT else None
         self.nb_preds = None
 
         self.init_values()
@@ -661,7 +686,7 @@ class MultiMLP(nn.Module):
 
         self.heading_printed = False
         self.nb_stats_file = sys.stdout if self.stats_file is sys.stdout else \
-            self.stats_file.replace('.csv', '_NB') if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES else sys.stdout
+            self.stats_file.replace('.csv', '_NB') if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES else self.stats_file.replace('.csv', '_HT') if self.task_detector_type == PREDICT_METHOD_HT else sys.stdout
         self.one_class_stats_file = sys.stdout if self.stats_file is sys.stdout else \
             open(self.stats_file.replace('.csv', '_OC.csv'), 'w') if self.task_detector_type == PREDICT_METHOD_ONE_CLASS else sys.stdout
         self.stats_file = sys.stdout if self.stats_file is sys.stdout else open(self.stats_file, 'w')
@@ -727,11 +752,11 @@ class MultiMLP(nn.Module):
                     self.train_nets.append(tmp_ann)
                     self.available_nn_id += 1
 
-    def get_majority_vote_from_nets(self, x, x_flatten, mini_batch_size, weights_for_each_network=None, add_best_training_nn_votes=False, predictor=None):
+    def get_majority_vote_from_nets(self, x, x_flatten, mini_batch_size, weights_for_each_network=None, add_best_training_nn_votes=False, predictor=None, static_features=None):
         votes = None
         nn_list = self.frozen_nets
         for i in range(len(nn_list)):
-            v = nn_list[i].get_votes(x, x_flatten)
+            v = nn_list[i].get_votes(x, x_flatten, static_features)
 
             if weights_for_each_network is not None:
                 v *= weights_for_each_network[i]
@@ -749,7 +774,7 @@ class MultiMLP(nn.Module):
 
             if weights_for_each_network is not None:
                 if votes is not None and nn_list[i].one_class_detector_fit_called:
-                    w, _ = self.get_best_matched_nn_index_and_weights_via_predictor(x, x_flatten, predictor, [nn_list[i]])
+                    w, _ = self.get_best_matched_nn_index_and_weights_via_predictor(x, x_flatten, predictor, [nn_list[i]], static_features)
                     v *= w[i]
 
             if votes is None:
@@ -774,13 +799,16 @@ class MultiMLP(nn.Module):
         return np.argmax(predictions.sum(axis=1).sum(axis=1), axis=0)
 
     @staticmethod
-    def get_one_class_probas_for_nn(x, x_flatten, n, feature_extractor=None):
+    def get_one_class_probas_for_nn(x, x_flatten, n, feature_extractor=None, static_features=None):
         one_class_y = None
         one_class_p = None
         one_class_df = None
 
         if feature_extractor is not None:
-            xx = get_static_features(x, feature_extractor)
+            if static_features is not None:
+                xx = static_features
+            else:
+                xx = get_static_features(x, feature_extractor)
         else:
             if n.network_type == NETWORK_TYPE_CNN:
                 xx = n.net.features(x)
@@ -799,7 +827,7 @@ class MultiMLP(nn.Module):
 
         return one_class_df, one_class_y, one_class_p
 
-    def get_best_matched_nn_index_and_weights_via_predictor(self, x, x_flatten, predictor, net_list):
+    def get_best_matched_nn_index_and_weights_via_predictor(self, x, x_flatten, predictor, net_list, static_features=None):
         if predictor == PREDICT_METHOD_ONE_CLASS:
             predictions = []
             for i in range(len(net_list)):
@@ -807,7 +835,8 @@ class MultiMLP(nn.Module):
                     x,
                     x_flatten,
                     net_list[i],
-                    self.f_ex if self.use_static_f_ex else None)
+                    self.f_ex if self.use_static_f_ex else None,
+                    static_features)
                 if self.use_one_class_probas:
                     p = one_class_p
                 else:
@@ -823,8 +852,8 @@ class MultiMLP(nn.Module):
                 weights_for_each_network = None
                 best_matched_frozen_nn_index = -1
 
-        elif predictor == PREDICT_METHOD_NAIVE_BAYES:
-            predictions = self.nb_predict(x)
+        elif predictor == PREDICT_METHOD_NAIVE_BAYES or predictor == PREDICT_METHOD_HT:
+            predictions = self.nb_predict(x, static_features)
             best_matched_frozen_nn_index = np.argmax(predictions.mean(axis=0), axis=0).item()
             weights_for_each_network = np.mean(predictions, axis=0) + self.vote_weight_bias
 
@@ -833,10 +862,13 @@ class MultiMLP(nn.Module):
     def nb_train(self, features, task_id):
         train_nb(features, self.nb, task_id)
 
-    def nb_predict(self, x):
+    def nb_predict(self, x, static_features=None):
         p = None
         if self.use_static_f_ex:
-            ex_f = get_static_features(x, self.f_ex)
+            if static_features is not None:
+                ex_f = static_features
+            else:
+                ex_f = get_static_features(x, self.f_ex)
             p = self.nb.predict_proba(ex_f)
         return p
 
@@ -926,7 +958,7 @@ class MultiMLP(nn.Module):
             if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
                 self.train_nets[idx].train_one_class_classifier(learned_features[0],
                                                                 self.use_one_class_probas)
-            elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
+            elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_HT:
                 self.nb_train(learned_features[0], self.detected_task_id)
             self.train_nets[idx].net.to(self.train_nets[idx].device)   # move the model back to original device
         else:
@@ -943,7 +975,7 @@ class MultiMLP(nn.Module):
         self.accumulated_x_or_features = [None]
 
     def save_nb_predictions(self):
-        if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
+        if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_HT:
             if self.training_exp == self.n_experiences:
                 np.save(self.nb_stats_file, self.nb_preds)
 
@@ -1014,6 +1046,11 @@ class MultiMLP(nn.Module):
         c_flatten, x_flatten = flatten_dimensions(x)
         y = self.mb_yy
         true_task_id = self.mb_task_id.sum(dim=0).item() // self.mb_task_id.shape[0]
+        static_features = None
+        # if x.shape[1] < 3:
+        #     x = repeat_channel_1(x)
+        if self.use_static_f_ex:
+            static_features = get_static_features(x, self.f_ex)
 
         if self.call_predict:
             self.samples_seen_for_test += r
@@ -1024,17 +1061,20 @@ class MultiMLP(nn.Module):
                     or self.task_detector_type == PREDICT_METHOD_RANDOM \
                     or self.task_detector_type == PREDICT_METHOD_TASK_ID_KNOWN \
                     or self.task_detector_type == PREDICT_METHOD_NW_CONFIDENCE \
-                    or self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
+                    or self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES \
+                    or self.task_detector_type == PREDICT_METHOD_HT:
                 if self.task_detector_type == PREDICT_METHOD_ONE_CLASS \
-                        or self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
+                        or self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES \
+                        or self.task_detector_type == PREDICT_METHOD_HT:
                     weights_for_frozen_nns, best_matched_frozen_nn_idx = \
                         self.get_best_matched_nn_index_and_weights_via_predictor(x, x_flatten,
                                                                                  self.task_detector_type,
-                                                                                 self.frozen_nets)
+                                                                                 self.frozen_nets,
+                                                                                 static_features)
                     if self.training_exp == self.n_experiences:
                         if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
                             self.check_accuracy_of_one_class_classifiers(x, x_flatten)
-                        elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
+                        elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_HT:
                             self.check_accuracy_of_nb(x, x_flatten)
 
                 elif self.task_detector_type == PREDICT_METHOD_RANDOM:
@@ -1061,10 +1101,11 @@ class MultiMLP(nn.Module):
 
                 if self.use_weights_from_task_detectors and (
                         self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or
+                        self.task_detector_type == PREDICT_METHOD_HT or
                         self.task_detector_type == PREDICT_METHOD_ONE_CLASS):
                     if best_matched_frozen_nn_idx < 0:
                         print(
-                            'No frozen nets. may use best training net for prediction for PREDICT_METHOD_NAIVE_BAYES or PREDICT_METHOD_ONE_CLASS')
+                            'No frozen nets. may use best training net for prediction for PREDICT_METHOD_NAIVE_BAYES or PREDICT_METHOD_HT or PREDICT_METHOD_ONE_CLASS')
                     final_votes = self.get_majority_vote_from_nets(
                         x, x_flatten, r,
                         weights_for_each_network=weights_for_frozen_nns,
@@ -1106,17 +1147,18 @@ class MultiMLP(nn.Module):
         x_or_features = None
         if use_instances_for_task_detector_training:
             if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or \
+                    self.task_detector_type == PREDICT_METHOD_HT or \
                     self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
                 if self.train_task_predictor_at_the_end == DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END:
                     if self.use_static_f_ex:
-                        x_or_features = get_static_features(x, self.f_ex)
-                        if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES:
+                        x_or_features = static_features
+                        if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_HT:
                             self.nb_train(x_or_features, self.detected_task_id)
                 else:  # TRAIN_TASK_PREDICTOR_AT_THE_END
                     if self.train_task_predictor_at_the_end == WITH_ACCUMULATED_INSTANCES:
                         x_or_features = x.cpu()
                     elif self.train_task_predictor_at_the_end == WITH_ACCUMULATED_STATIC_FEATURES:
-                        x_or_features = get_static_features(x, self.f_ex)
+                        x_or_features = static_features
                     if x_or_features is not None:
                         if self.accumulated_x_or_features[0] is None:
                             self.accumulated_x_or_features[0] = x_or_features
@@ -1133,35 +1175,43 @@ class MultiMLP(nn.Module):
             number_of_mlps_to_train = len(self.train_nets)
             number_of_top_mlps_to_train = len(self.train_nets) // 2
 
+        if self.train_nets[0].network_type == NETWORK_TYPE_CNN:
+            xx = x
+            c = None
+        else:
+            xx = x_flatten
+            c = c_flatten
+
         self.train_nets.sort(key=lambda ann: ann.loss_estimator.estimation)
-        for i in range(number_of_mlps_to_train):
-            if i < number_of_top_mlps_to_train:
-                # top most train
-                nn_index = i
-            else:
-                # Random train
-                off_set = ((self.samples_seen_for_train_after_drift + i) % (
-                        len(self.train_nets) - number_of_top_mlps_to_train))
-                nn_index = number_of_top_mlps_to_train + off_set
 
-            if self.train_nets[nn_index].network_type == NETWORK_TYPE_CNN:
-                xx = x
-                c = None
-            else:
-                xx = x_flatten
-                c = c_flatten
+        if self.train_only_the_best_nn and self.total_samples_seen_for_train > 1000:
+            self.train_nets[0].train_net(xx, y, c, r, true_task_id, use_instances_for_task_detector_training,
+                                                self.use_one_class_probas,
+                                                static_features=static_features,
+                                                train_nn_using_ex_static_f=self.train_nn_using_ex_static_f)
+        else:
+            for i in range(number_of_mlps_to_train):
+                if i < number_of_top_mlps_to_train:
+                    # top most train
+                    nn_index = i
+                else:
+                    # Random train
+                    off_set = ((self.samples_seen_for_train_after_drift + i) % (
+                            len(self.train_nets) - number_of_top_mlps_to_train))
+                    nn_index = number_of_top_mlps_to_train + off_set
 
+                if self.use_threads:
+                    t.append(threading.Thread(target=net_train, args=(self.train_nets[nn_index], xx, r, c, y, true_task_id, use_instances_for_task_detector_training, self.use_one_class_probas, static_features, self.train_nn_using_ex_static_f, )))
+                else:
+                    self.train_nets[nn_index].train_net(xx, y, c, r, true_task_id, use_instances_for_task_detector_training,
+                                                        self.use_one_class_probas,
+                                                        static_features=static_features,
+                                                        train_nn_using_ex_static_f=self.train_nn_using_ex_static_f)
             if self.use_threads:
-                t.append(threading.Thread(target=net_train, args=(self.train_nets[nn_index], xx, r, c, y, true_task_id, use_instances_for_task_detector_training, self.use_one_class_probas, x_or_features,)))
-            else:
-                self.train_nets[nn_index].train_net(xx, y, c, r, true_task_id, use_instances_for_task_detector_training,
-                                                    self.use_one_class_probas,
-                                                    x_or_features)
-        if self.use_threads:
-            for i in range(len(t)):
-                t[i].start()
-            for i in range(len(t)):
-                t[i].join()
+                for i in range(len(t)):
+                    t[i].start()
+                for i in range(len(t)):
+                    t[i].join()
 
         nn_with_lowest_loss = self.get_train_nn_index_with_lowest_loss()
 
@@ -1174,7 +1224,7 @@ class MultiMLP(nn.Module):
                 self.add_nn_with_lowest_loss_to_frozen_list()
                 self.reset_one_class_detectors_and_loss_estimators_seen_task_ids()
 
-        if (self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_ONE_CLASS) and use_instances_for_task_detector_training:
+        if (self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_HT or self.task_detector_type == PREDICT_METHOD_ONE_CLASS) and use_instances_for_task_detector_training:
             pass
 
         self.train_nets[nn_with_lowest_loss].chosen_after_train += r

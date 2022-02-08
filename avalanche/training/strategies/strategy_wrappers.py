@@ -598,6 +598,7 @@ __all__ = [
     'GDumb',
     'LwF',
     'TrainPool',
+    'FeatureExtractor',
     'AGEM',
     'GEM',
     'EWC',
