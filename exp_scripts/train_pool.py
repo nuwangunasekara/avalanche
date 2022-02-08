@@ -128,11 +128,10 @@ def main(args):
         num_channels = 3
         scenario.n_classes = 10
     elif args.dataset == 'CLStream51':
-        # scenario = CLStream51(scenario='instance', seed=10, eval_num=3000)
-        # input_size = 3 * 32 * 32
-        # num_channels = 3
+        scenario = CLStream51(scenario='instance', seed=10, eval_num=3000)
+        input_size = 3 * 32 * 32
+        num_channels = 3
         # scenario.n_classes = 10
-        pass
 
     # for step in scenario.train_stream:
     #     data = step.dataset
