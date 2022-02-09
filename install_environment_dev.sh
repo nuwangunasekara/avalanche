@@ -78,7 +78,7 @@ if ! [[ "$python" =~ ^(3.6|3.7|3.8|3.9)$ ]]; then
     exit 1
 fi
 
-if ! [[ "$cuda_version" =~ ^(9.2|10.1|10.2|11.0|11.1|"none")$ ]]; then
+if ! [[ "$cuda_version" =~ ^(9.2|10.1|10.2|11.0|11.1|11.3|"none")$ ]]; then
     echo "Select a CUDA version between 9.2 10.1, 10.2, 11.0, 11.1, none"
     exit 1
 fi
