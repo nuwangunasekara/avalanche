@@ -22,6 +22,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision import transforms
 import torchvision.models.quantization as models
+from torch.nn.quantized import functional as qF
 
 Sigmoid = 1
 Tanh = 2
@@ -61,20 +62,29 @@ WITH_ACCUMULATED_STATIC_FEATURES = 2
 
 NO_OF_CHANNELS = 3
 
-def create_static_feature_extractor():
+def create_static_feature_extractor(single_channel_data=False):
     # https://keras.io/api/applications/
     # https://pytorch.org/hub/
     # https://pytorch.org/tutorials/intermediate/quantized_transfer_learning_tutorial.html
     # https://pytorch.org/hub/pytorch_vision_resnet/
-    original_model = models.resnet18(pretrained=True, progress=True, quantize=True)
+    original_model = models.resnet18(pretrained=True, progress=True, quantize=False if single_channel_data else True)
     # you dont need this as the model is quantized
     for param in original_model.parameters():
         param.requires_grad = False
 
+    if single_channel_data:
+        conv1 = nn.Conv2d(1, 64, kernel_size=original_model.conv1.kernel_size,
+                          # stride=1,
+                          # stride=original_model.conv1.stride,
+                          #       padding=original_model.conv1.padding,
+                          bias=False)
+        conv1.weight.data = original_model.state_dict()['conv1.weight'].mean(axis=1).view(64,1,original_model.conv1.kernel_size[0],original_model.conv1.kernel_size[1])
+    else:
+        conv1 = original_model.conv1
     # Step 1. Isolate the feature extractor.
     model_fe = nn.Sequential(
         original_model.quant,  # Quantize the input
-        original_model.conv1,
+        conv1,
         original_model.bn1,
         original_model.relu,
         original_model.maxpool,
@@ -98,6 +108,19 @@ def create_static_feature_extractor():
         nn.Flatten(1),
         # new_head,
     )
+
+    if single_channel_data:
+        for param in new_model.parameters():
+            param.requires_grad = False
+
+        # https: // pytorch.org / tutorials / advanced / static_quantization_tutorial.html  # post-training-static-quantization
+        # backend = "fbgemm"
+        # new_model.qconfig = torch.quantization.get_default_qconfig(backend)
+        # torch.backends.quantized.engine = backend
+        new_model.qconfig = torch.quantization.default_qconfig
+        new_model = torch.quantization.prepare(new_model, inplace=False)
+        new_model = torch.quantization.convert(new_model, inplace=False)
+
     return new_model.to(torch.device("cpu"))
 
 
@@ -120,7 +143,7 @@ def train_one_class_classifier(features, one_class_detector, train_logistic_regr
 
 
 def train_nb(features, nb, task_id):
-    x = features.cpu().numpy()
+    x = features.detach().cpu().numpy()
     y = np.empty((x.shape[0],), dtype=np.int64)
     y.fill(task_id)
     nb.partial_fit(x, y)
@@ -444,7 +467,7 @@ class ANN:
                 # number_of_channels = self.x_shape[1]
             else:
                 number_of_channels = self.x_shape[1]
-            self.net = SimpleCNN(num_channels=number_of_channels)
+            self.net = SimpleCNN(num_classes=self.num_classes, num_channels=number_of_channels)
         else:
             pass
             # self.net = PyNet(hidden_layers=self.hidden_layers_for_MLP, num_classes=self.num_classes,
@@ -463,6 +486,7 @@ class ANN:
                   use_one_class_probas, static_features=None, train_nn_using_ex_static_f=False):
         if train_nn_using_ex_static_f and static_features is not None:
             xx = repeat_channel_1(static_features.view(static_features.shape[0], 64, -1)[:, None, :, :])
+            # xx = x
         else:
             xx = x
         if self.net is None:
@@ -533,6 +557,7 @@ class ANN:
         if self.network_type == NETWORK_TYPE_CNN:
             if static_features is not None:
                 xx = repeat_channel_1(static_features.view(static_features.shape[0], 64, -1)[:, None, :, :])
+                # xx = x
             else:
                 xx = x
         else:
@@ -675,7 +700,7 @@ class MultiMLP(nn.Module):
         self.accumulated_x_or_features = [None]
         # self.learned_tasks = [0]
         self.instances_per_task_at_last = {}
-        self.f_ex = create_static_feature_extractor()
+        self.f_ex = None
         self.nb = NaiveBayes() if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES else HoeffdingTreeClassifier() if self.task_detector_type == PREDICT_METHOD_HT else None
         self.nb_preds = None
 
@@ -1050,6 +1075,10 @@ class MultiMLP(nn.Module):
         # if x.shape[1] < 3:
         #     x = repeat_channel_1(x)
         if self.use_static_f_ex:
+            if self.f_ex is None:
+                self.f_ex = create_static_feature_extractor(
+                    # single_channel_data=True if x.shape[1] == 1 else False
+                )
             static_features = get_static_features(x, self.f_ex)
 
         if self.call_predict:

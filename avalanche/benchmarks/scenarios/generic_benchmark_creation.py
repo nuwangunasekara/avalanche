@@ -544,7 +544,7 @@ def create_generic_benchmark_from_paths(
 
     input_streams = dict(
         train=train_lists_of_files,
-        test=test_lists_of_files)
+        test=[test_lists_of_files] if complete_test_set_only else test_lists_of_files)
 
     if other_streams_lists_of_files is not None:
         input_streams = {**input_streams, **other_streams_lists_of_files}

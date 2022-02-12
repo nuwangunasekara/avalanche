@@ -128,10 +128,12 @@ def main(args):
         num_channels = 3
         scenario.n_classes = 10
     elif args.dataset == 'CLStream51':
-        scenario = CLStream51(scenario='instance', seed=10, eval_num=3000)
-        input_size = 3 * 32 * 32
+        scenario = CLStream51(scenario='instance', seed=10, eval_num=None
+                              , dataset_root='/Scratch/ng98/CL/avalanche_data/'
+                              )
+        input_size = 3 * 224 * 224
         num_channels = 3
-        # scenario.n_classes = 10
+        scenario.n_classes = 52
 
     # for step in scenario.train_stream:
     #     data = step.dataset
@@ -228,9 +230,9 @@ def main(args):
 
     eval_plugin = EvaluationPlugin(
         accuracy_metrics(minibatch=True, epoch=True, experience=True, stream=True),
-        loss_metrics(minibatch=True, epoch=True, experience=True, stream=True),
+        # loss_metrics(minibatch=True, epoch=True, experience=True, stream=True),
         forgetting_metrics(experience=True, stream=True),
-        confusion_matrix_metrics(save_image=True, normalize='all', stream=True),
+        # confusion_matrix_metrics(save_image=True, normalize='all', stream=True),
         loggers=[interactive_logger, text_logger, tb_logger, csv_logger])
 
     # create strategy
@@ -282,7 +284,7 @@ def main(args):
 
         print('Computing accuracy on the test set')
         # results.append(strategy.eval(scenario.test_stream[:]))
-        results.append(strategy.eval(scenario.test_stream[0:train_task.current_experience + 1]))
+        results.append(strategy.eval(scenario.test_stream[0: 1 if len(scenario.test_stream) == 1 else train_task.current_experience + 1]))
 
     # print("Test results ", results)
 
