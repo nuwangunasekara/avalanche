@@ -12,7 +12,7 @@ dataset=(LED_a RotatedMNIST RotatedCIFAR10 CORe50 CLStream51)
 dataset=(CORe50 RotatedMNIST RotatedCIFAR10 )
 #dataset=(CORe50)
 strategy=(LwF EWC GDumb ER TrainPool)
-strategy=(TrainPool ER)
+strategy=(TrainPool GDumb)
 
 mini_batch_size='16'
 
