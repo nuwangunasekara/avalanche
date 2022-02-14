@@ -149,9 +149,9 @@ def main(args):
         if args.module == 'SimpleMLP':
             model = SimpleMLP(hidden_size=args.hs, num_classes=scenario.n_classes, input_size=input_size)
         if args.module == 'CNN4':
-            model = CNN4(num_classes=10, num_channels=num_channels)
+            model = CNN4(num_classes=scenario.n_classes, num_channels=num_channels)
         else:
-            model = SimpleCNN(num_classes=10, num_channels=num_channels)
+            model = SimpleCNN(num_classes=scenario.n_classes, num_channels=num_channels)
         if args.optimizer == 'SGD':
             optimizer = torch.optim.SGD(model.parameters(), lr=args.lr)
         elif args.optimizer == 'Adam':
