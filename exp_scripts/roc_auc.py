@@ -152,7 +152,7 @@ command = subprocess.Popen('pwd | xargs basename',
 for line in command.stdout.readlines():
     exp = line.decode("utf-8").replace('\n', '')
     print(exp)
-fig.suptitle(exp)
+# fig.suptitle(exp)
 gs = fig.add_gridspec(len(datasets), 1)
 rows = 0
 col = 0
@@ -165,6 +165,14 @@ for d in datasets:
         f = line.decode("utf-8").replace('\n', '')
         print(f)
         read_file_plot_roc_cur_auc(f, ax, d, numpy_file=True)
+
+    if f is None:
+        command = subprocess.Popen("find " + args.resultsDir + " -iname '*_Nets_HT.npy' | grep " + d,
+                                   shell=True, stdout=subprocess.PIPE)
+        for line in command.stdout.readlines():
+            f = line.decode("utf-8").replace('\n', '')
+            print(f)
+            read_file_plot_roc_cur_auc(f, ax, d, numpy_file=True)
 
     if f is None:
         command = subprocess.Popen("find " + args.resultsDir + " -iname '*Nets_OC.csv' | grep " + d,
