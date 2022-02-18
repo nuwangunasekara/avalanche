@@ -244,7 +244,7 @@ def CLStream51(
                                     complete_test_set_only=scenario == 'instance')
         intersection, get_remove_label_lists(None, train_filelists_paths, test_filelists_paths,
                                complete_test_set_only=scenario == 'instance')
-        scenario.n_classes = len(intersection)
+
 
     benchmark_obj = create_generic_benchmark_from_paths(
         train_lists_of_files=train_filelists_paths,
@@ -255,6 +255,8 @@ def CLStream51(
         eval_transform=eval_transform,
         dataset_type=AvalancheDatasetType.CLASSIFICATION)
 
+    if no_novelity_detection:
+        benchmark_obj.n_classes = len(intersection)
     return benchmark_obj
 
 
