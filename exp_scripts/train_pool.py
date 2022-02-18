@@ -128,21 +128,12 @@ def main(args):
         num_channels = 3
         scenario.n_classes = 10
     elif args.dataset == 'CLStream51':
-        scenario = CLStream51(scenario='instance', seed=10, eval_num=None
-                              , dataset_root='/Scratch/ng98/CL/avalanche_data/'
+        scenario = CLStream51(scenario='instance', seed=10, eval_num=None,
+                              dataset_root='/Scratch/ng98/CL/avalanche_data/',
+                              no_novelity_detection=True
                               )
         input_size = 3 * 224 * 224
         num_channels = 3
-        scenario.n_classes = 52
-
-    # for step in scenario.train_stream:
-    #     data = step.dataset
-    #     dl = DataLoader(data, batch_size=args.minibatch_size)
-    #     for x, y, t in dl:
-    #         # print(y)
-    #         print(t)
-    #         break
-    # print('hi')
     # exit(0)
 
     if args.module == 'SimpleMLP' or args.module == 'SimpleCNN' or args.module == 'CNN4':

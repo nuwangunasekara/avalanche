@@ -11,6 +11,9 @@
 from pathlib import Path
 from typing import Union
 
+import torch
+from torch.utils.data import DataLoader
+
 from typing_extensions import Literal
 
 from avalanche.benchmarks.datasets import Stream51
@@ -69,7 +72,8 @@ def CLStream51(
         download=True,
         train_transform=_default_stream51_transform,
         eval_transform=_default_stream51_transform,
-        dataset_root: Union[str, Path] = None):
+        dataset_root: Union[str, Path] = None,
+        no_novelity_detection=False):
     """
     Creates a CL benchmark for Stream-51.
 
@@ -233,6 +237,14 @@ def CLStream51(
         if scenario == 'class_instance':
             test_ood_filelists_paths = [[[j[0], j[1]] for j in i] for i in
                                         test_ood_filelists_paths]
+    if no_novelity_detection:
+        intersection, remove_label_list = get_remove_label_lists(None, train_filelists_paths, test_filelists_paths,
+                                                   complete_test_set_only=scenario == 'instance')
+        remove_filepaths_with_label(remove_label_list, train_filelists_paths, test_filelists_paths,
+                                    complete_test_set_only=scenario == 'instance')
+        intersection, get_remove_label_lists(None, train_filelists_paths, test_filelists_paths,
+                               complete_test_set_only=scenario == 'instance')
+        scenario.n_classes = len(intersection)
 
     benchmark_obj = create_generic_benchmark_from_paths(
         train_lists_of_files=train_filelists_paths,
@@ -245,6 +257,76 @@ def CLStream51(
 
     return benchmark_obj
 
+
+def remove_filepaths_with_label(remove_label_list, train_filelists_paths, test_filelists_paths, complete_test_set_only=False):
+    for i in range(len(train_filelists_paths)):
+        for l in remove_label_list['train']:
+            j = 0
+            while j < len(train_filelists_paths[i]):
+                if train_filelists_paths[i][j][1] == l:
+                    del train_filelists_paths[i][j]
+                    continue
+                j += 1
+
+    if complete_test_set_only:
+        for l in remove_label_list['test']:
+            i = 0
+            while i < len(test_filelists_paths):
+                if test_filelists_paths[i][1] == l:
+                    del test_filelists_paths[i]
+                    continue
+                i += 1
+    else:
+        for i in range(len(test_filelists_paths)):
+            for l in remove_label_list['test']:
+                j = 0
+                while j < len(test_filelists_paths[i]):
+                    if test_filelists_paths[i][j][1] == l:
+                        del test_filelists_paths[i][j]
+                        continue
+                    j += 1
+
+def get_remove_label_lists(scenario, train_filelists_paths, test_filelists_paths, complete_test_set_only=False):
+    sets = {}
+    sets['train'] = set()
+    sets['test'] = set()
+    if scenario is not None:
+        for key, stream in scenario.streams.items():
+            l = None
+            for task_stream in stream:
+                batch_size = len(task_stream.dataset)
+                dl = DataLoader(task_stream.dataset, batch_size=batch_size)
+                for x, y, t in dl:
+                    # x, y, t = next(iter(dl))
+                    # y = y.item()
+                    sets[key].update(y.unique().tolist())
+    else:
+        for i in range(len(train_filelists_paths)):
+            for j in range(len(train_filelists_paths[i])):
+                y = train_filelists_paths[i][j][1]
+                sets ['train'].add(y)
+        if complete_test_set_only:
+            for i in range(len(test_filelists_paths)):
+                y = test_filelists_paths[i][1]
+                sets['test'].add(y)
+        else:
+            for i in range(len(test_filelists_paths)):
+                for j in range(len(test_filelists_paths[i])):
+                    y = test_filelists_paths[i][j][1]
+                    sets['test'].add(y)
+    print('sets-------')
+    print(sets)
+    print('intersection-------')
+    intersection = sets['train'].intersection(sets['test'])
+    print(intersection)
+
+    remove_label_list = {}
+    print('difference-------------')
+    remove_label_list['train'] = sets['train'].difference(sets['test'])
+    remove_label_list['test'] = sets['test'].difference(sets['train'])
+    print('remove list-------------')
+    print(remove_label_list)
+    return intersection, remove_label_list
 
 __all__ = [
     'Stream51'
