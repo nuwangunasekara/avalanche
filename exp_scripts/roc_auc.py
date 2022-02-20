@@ -145,7 +145,7 @@ def read_file_plot_roc_cur_auc(file_name, ax, title_prefix, numpy_file=False):
         plot_roc_cur(ax, fper, tper, roc_auc, title_prefix)
 
 
-datasets = ('CORe50', 'RotatedMNIST', 'RotatedCIFAR10')
+datasets = ('CORe50', 'RotatedMNIST', 'RotatedCIFAR10', 'CLStream51')
 fig = plt.figure(constrained_layout=True, figsize=(5, 10))
 command = subprocess.Popen('pwd | xargs basename',
                            shell=True, stdout=subprocess.PIPE)
