@@ -62,12 +62,12 @@ WITH_ACCUMULATED_STATIC_FEATURES = 2
 
 NO_OF_CHANNELS = 3
 
-def create_static_feature_extractor(single_channel_data=False):
+def create_static_feature_extractor(device=None, single_channel_data=False):
     # https://keras.io/api/applications/
     # https://pytorch.org/hub/
     # https://pytorch.org/tutorials/intermediate/quantized_transfer_learning_tutorial.html
     # https://pytorch.org/hub/pytorch_vision_resnet/
-    original_model = models.resnet18(pretrained=True, progress=True, quantize=False if single_channel_data else True)
+    original_model = models.resnet18(pretrained=True, progress=True, quantize=False)
     # you dont need this as the model is quantized
     for param in original_model.parameters():
         param.requires_grad = False
@@ -83,7 +83,7 @@ def create_static_feature_extractor(single_channel_data=False):
         conv1 = original_model.conv1
     # Step 1. Isolate the feature extractor.
     model_fe = nn.Sequential(
-        original_model.quant,  # Quantize the input
+        # original_model.quant,  # Quantize the input
         conv1,
         original_model.bn1,
         original_model.relu,
@@ -93,7 +93,7 @@ def create_static_feature_extractor(single_channel_data=False):
         original_model.layer3,
         original_model.layer4,
         original_model.avgpool,
-        original_model.dequant,  # Dequantize the output
+        # original_model.dequant,  # Dequantize the output
     )
 
     # # Step 2. Create a new "head"
@@ -121,7 +121,7 @@ def create_static_feature_extractor(single_channel_data=False):
         new_model = torch.quantization.prepare(new_model, inplace=False)
         new_model = torch.quantization.convert(new_model, inplace=False)
 
-    return new_model.to(torch.device("cpu"))
+    return new_model.to(torch.device(device))
 
 
 def train_one_class_classifier(features, one_class_detector, train_logistic_regression, logistic_regression, scaler=None):
@@ -169,15 +169,15 @@ repeat_channel_1 = transforms.Compose([
 
 
 def get_static_features(x, feature_extractor):
-    device = torch.device("cpu")
-    feature_extractor.to(device)
-    x = x.to(device)
+    # device = torch.device("cpu")
+    # feature_extractor.to(device)
+    # x = x.to(device)
     if x.shape[1] < 3: # has les than 3 channels
         preprocessed_x = preprocessor(x) # repeat channel 1
         # preprocessed_x = x
     else:
         preprocessed_x = x
-    return feature_extractor(preprocessed_x).cpu()
+    return feature_extractor(preprocessed_x)
 
 
 class SimpleCNN(nn.Module):
@@ -701,7 +701,7 @@ class MultiMLP(nn.Module):
         # self.learned_tasks = [0]
         self.instances_per_task_at_last = {}
         self.f_ex = None
-        self.nb = NaiveBayes() if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES else HoeffdingTreeClassifier() if self.task_detector_type == PREDICT_METHOD_HT else None
+        self.nb_or_ht = NaiveBayes() if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES else HoeffdingTreeClassifier() if self.task_detector_type == PREDICT_METHOD_HT else None
         self.nb_preds = None
 
         self.init_values()
@@ -878,23 +878,23 @@ class MultiMLP(nn.Module):
                 best_matched_frozen_nn_index = -1
 
         elif predictor == PREDICT_METHOD_NAIVE_BAYES or predictor == PREDICT_METHOD_HT:
-            predictions = self.nb_predict(x, static_features)
+            predictions = self.nb_or_ht_predict(x, static_features)
             best_matched_frozen_nn_index = np.argmax(predictions.mean(axis=0), axis=0).item()
             weights_for_each_network = np.mean(predictions, axis=0) + self.vote_weight_bias
 
         return weights_for_each_network, best_matched_frozen_nn_index
 
     def nb_train(self, features, task_id):
-        train_nb(features, self.nb, task_id)
+        train_nb(features, self.nb_or_ht, task_id)
 
-    def nb_predict(self, x, static_features=None):
+    def nb_or_ht_predict(self, x, static_features=None):
         p = None
         if self.use_static_f_ex:
             if static_features is not None:
                 ex_f = static_features
             else:
                 ex_f = get_static_features(x, self.f_ex)
-            p = self.nb.predict_proba(ex_f)
+            p = self.nb_or_ht.predict_proba(ex_f.cpu())
         return p
 
     def get_train_nn_index_with_lowest_loss(self):
@@ -1006,7 +1006,7 @@ class MultiMLP(nn.Module):
 
     def check_accuracy_of_nb(self, x, x_flatten):
         for i in range(len(x)):
-            p = self.nb_predict(x[None, i, :])
+            p = self.nb_or_ht_predict(x[None, i, :])
 
             p_row = np.concatenate((p, self.mb_task_id[i].cpu().numpy().reshape((1, 1))), axis=1)
             if self.nb_preds is None:
@@ -1076,8 +1076,8 @@ class MultiMLP(nn.Module):
         #     x = repeat_channel_1(x)
         if self.use_static_f_ex:
             if self.f_ex is None:
-                self.f_ex = create_static_feature_extractor(
-                    # single_channel_data=True if x.shape[1] == 1 else False
+                self.f_ex = create_static_feature_extractor(device=self.device
+                    # ,single_channel_data=True if x.shape[1] == 1 else False
                 )
             static_features = get_static_features(x, self.f_ex)
 
