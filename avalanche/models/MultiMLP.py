@@ -24,6 +24,9 @@ from torchvision import transforms
 import torchvision.models.quantization as models
 from torch.nn.quantized import functional as qF
 
+# import network_Gray_ResNet
+from avalanche.models import network_Gray_ResNet
+
 Sigmoid = 1
 Tanh = 2
 Relu = 3
@@ -62,39 +65,60 @@ WITH_ACCUMULATED_STATIC_FEATURES = 2
 
 NO_OF_CHANNELS = 3
 
-def create_static_feature_extractor(device=None, single_channel_data=False):
-    # https://keras.io/api/applications/
-    # https://pytorch.org/hub/
-    # https://pytorch.org/tutorials/intermediate/quantized_transfer_learning_tutorial.html
-    # https://pytorch.org/hub/pytorch_vision_resnet/
-    original_model = models.resnet18(pretrained=True, progress=True, quantize=False)
-    # you dont need this as the model is quantized
-    for param in original_model.parameters():
-        param.requires_grad = False
-
+def create_static_feature_extractor(device=None, single_channel_data=False, single_channel_fx_path='/Scratch/repository/ng98/CL_SSD_Arch/CL/1_channel_fx/ResNet50_Gray_epoch60_BN_batchsize64_dict.pth'):
     if single_channel_data:
-        conv1 = nn.Conv2d(1, 64, kernel_size=original_model.conv1.kernel_size,
-                          # stride=1,
-                          # stride=original_model.conv1.stride,
-                          #       padding=original_model.conv1.padding,
-                          bias=False)
-        conv1.weight.data = original_model.state_dict()['conv1.weight'].mean(axis=1).view(64,1,original_model.conv1.kernel_size[0],original_model.conv1.kernel_size[1])
+        # conv1 = nn.Conv2d(1, 64, kernel_size=original_model.conv1.kernel_size,
+        #                   # stride=1,
+        #                   # stride=original_model.conv1.stride,
+        #                   #       padding=original_model.conv1.padding,
+        #                   bias=False)
+        # conv1.weight.data = original_model.state_dict()['conv1.weight'].mean(axis=1).view(64,1,original_model.conv1.kernel_size[0],original_model.conv1.kernel_size[1])
+        original_model = network_Gray_ResNet.resnet50()
+        original_model.load_state_dict(torch.load(single_channel_fx_path))
+
+        # original_model = torch.load(single_channel_fx_path)
+        # original_model.eval()
+
+        for param in original_model.parameters():
+            param.requires_grad = False
+
+        model_fe = nn.Sequential(
+            original_model.quant,  # Quantize the input
+            original_model.begin,
+            original_model.layer1,
+            original_model.layer2,
+            original_model.layer3,
+            original_model.layer4,
+            original_model.last,
+            original_model.avgpool,
+            original_model.dequant,  # Dequantize the output
+        )
     else:
-        conv1 = original_model.conv1
-    # Step 1. Isolate the feature extractor.
-    model_fe = nn.Sequential(
-        # original_model.quant,  # Quantize the input
-        conv1,
-        original_model.bn1,
-        original_model.relu,
-        original_model.maxpool,
-        original_model.layer1,
-        original_model.layer2,
-        original_model.layer3,
-        original_model.layer4,
-        original_model.avgpool,
-        # original_model.dequant,  # Dequantize the output
-    )
+        # https://keras.io/api/applications/
+        # https://pytorch.org/hub/
+        # https://pytorch.org/tutorials/intermediate/quantized_transfer_learning_tutorial.html
+        # https://pytorch.org/hub/pytorch_vision_resnet/
+        original_model = models.resnet18(pretrained=True, progress=True, quantize=False)
+
+        # you dont need this as the model is quantized
+        for param in original_model.parameters():
+            param.requires_grad = False
+
+        # conv1 = original_model.conv1
+        # Step 1. Isolate the feature extractor.
+        model_fe = nn.Sequential(
+            # original_model.quant,  # Quantize the input
+            original_model.conv1,
+            original_model.bn1,
+            original_model.relu,
+            original_model.maxpool,
+            original_model.layer1,
+            original_model.layer2,
+            original_model.layer3,
+            original_model.layer4,
+            original_model.avgpool,
+            # original_model.dequant,  # Dequantize the output
+        )
 
     # # Step 2. Create a new "head"
     # new_head = nn.Sequential(
@@ -109,17 +133,18 @@ def create_static_feature_extractor(device=None, single_channel_data=False):
         # new_head,
     )
 
-    if single_channel_data:
-        for param in new_model.parameters():
-            param.requires_grad = False
+    for param in new_model.parameters():
+        param.requires_grad = False
+
+    # if single_channel_data:
 
         # https: // pytorch.org / tutorials / advanced / static_quantization_tutorial.html  # post-training-static-quantization
         # backend = "fbgemm"
         # new_model.qconfig = torch.quantization.get_default_qconfig(backend)
         # torch.backends.quantized.engine = backend
-        new_model.qconfig = torch.quantization.default_qconfig
-        new_model = torch.quantization.prepare(new_model, inplace=False)
-        new_model = torch.quantization.convert(new_model, inplace=False)
+        # new_model.qconfig = torch.quantization.default_qconfig
+        # new_model = torch.quantization.prepare(new_model, inplace=False)
+        # new_model = torch.quantization.convert(new_model, inplace=False)
 
     return new_model.to(torch.device(device))
 
@@ -169,9 +194,9 @@ repeat_channel_1 = transforms.Compose([
 
 
 def get_static_features(x, feature_extractor):
-    # device = torch.device("cpu")
-    # feature_extractor.to(device)
-    # x = x.to(device)
+    device = torch.device("cpu")
+    feature_extractor.to(device)
+    x = x.to(device)
     if x.shape[1] < 3: # has les than 3 channels
         preprocessed_x = preprocessor(x) # repeat channel 1
         # preprocessed_x = x
@@ -1076,7 +1101,8 @@ class MultiMLP(nn.Module):
         #     x = repeat_channel_1(x)
         if self.use_static_f_ex:
             if self.f_ex is None:
-                self.f_ex = create_static_feature_extractor(device=self.device
+                self.f_ex = create_static_feature_extractor(device='cpu'
+                                                            # self.device
                     # ,single_channel_data=True if x.shape[1] == 1 else False
                 )
             static_features = get_static_features(x, self.f_ex)
