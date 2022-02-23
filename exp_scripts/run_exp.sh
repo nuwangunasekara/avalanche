@@ -42,8 +42,8 @@ tp_train_nn_using_ex_static_f='no-train_nn_using_ex_static_f'
 tp_train_only_the_best_nn='no-train_only_the_best_nn'
 #tp_train_only_the_best_nn='train_only_the_best_nn'
 
-tp_use_1_channel_pretrained_for_1_channel='no-use_1_channel_pretrained_for_1_channel'
-#tp_use_1_channel_pretrained_for_1_channel='use_1_channel_pretrained_for_1_channel'
+tp_use_1_channel_pretrained_for_1_channel='no-use_1_c_pt'
+#tp_use_1_channel_pretrained_for_1_channel='use_1_c_pt'
 
 tp_use_quantized='no-use_quantized'
 #tp_use_quantized='use_quantized'
@@ -179,7 +179,7 @@ do
             tp_train_only_the_best_nn_cmd='--no-train_only_the_best_nn'
           fi
 
-          if [ "${tp_use_1_channel_pretrained_for_1_channel}" == "use_1_channel_pretrained_for_1_channel" ]; then
+          if [ "${tp_use_1_channel_pretrained_for_1_channel}" == "use_1_c_pt" ]; then
             tp_use_1_channel_pretrained_for_1_channel_cmd='--use_1_channel_pretrained_for_1_channel'
           else
             tp_use_1_channel_pretrained_for_1_channel_cmd='--no-use_1_channel_pretrained_for_1_channel'
