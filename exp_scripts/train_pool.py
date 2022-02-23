@@ -200,7 +200,9 @@ def main(args):
             n_experiences=scenario.n_experiences,
             use_static_f_ex=args.use_static_f_ex,
             train_nn_using_ex_static_f=args.train_nn_using_ex_static_f,
-            train_only_the_best_nn=args.train_only_the_best_nn)
+            train_only_the_best_nn=args.train_only_the_best_nn,
+            use_1_channel_pretrained_for_1_channel=args.use_1_channel_pretrained_for_1_channel,
+            use_quantized=args.use_quantized)
         optimizer = None
 
     criterion = torch.nn.CrossEntropyLoss()
@@ -383,6 +385,20 @@ if __name__ == '__main__':
     parser.add_argument('--no-train_only_the_best_nn', dest='train_only_the_best_nn',
                         action='store_false')
     parser.set_defaults(train_only_the_best_nn=False)
+
+    # use_1_channel_pretrained_for_1_channel
+    parser.add_argument('--use_1_channel_pretrained_for_1_channel', dest='use_1_channel_pretrained_for_1_channel',
+                        action='store_true')
+    parser.add_argument('--no-use_1_channel_pretrained_for_1_channel', dest='use_1_channel_pretrained_for_1_channel',
+                        action='store_false')
+    parser.set_defaults(use_1_channel_pretrained_for_1_channel=False)
+
+    # use_quantized
+    parser.add_argument('--use_quantized', dest='use_quantized',
+                        action='store_true')
+    parser.add_argument('--no-use_quantized', dest='use_quantized',
+                        action='store_false')
+    parser.set_defaults(use_quantized=True)
 
     args = parser.parse_args()
 
