@@ -121,7 +121,7 @@ def main(args):
             csv_file='/Users/ng98/Desktop/datasets/NEW/unzipped/' + args.dataset + '.csv',
             n_input_features=input_size,
             n_classes=10,
-            minibatch_size=args.minibatch_size, drift_width=250000)
+            minibatch_size=args.train_mb_size, drift_width=250000)
     elif args.dataset == 'CORe50':
         scenario = CORe50(scenario='ni_di_task_id_by_session', run=0, object_lvl=False, mini=True)
         input_size = 3 * 32 * 32
@@ -231,7 +231,9 @@ def main(args):
     # create strategy
     if args.strategy == 'TrainPool':
         strategy = TrainPool(model, optimizer, criterion,
-                             train_epochs=args.epochs, device=device, train_mb_size=args.minibatch_size,
+                             train_epochs=args.epochs, device=device,
+                             train_mb_size=args.train_mb_size,
+                             eval_mb_size=args.eval_mb_size,
                              # plugins=[ReplayPlugin(mem_size=1000)],
                              evaluator=eval_plugin)
     elif args.strategy == 'LwF':
@@ -241,22 +243,30 @@ def main(args):
             else args.lwf_alpha
         strategy = LwF(model, optimizer, criterion,
                        alpha=lwf_alpha, temperature=args.softmax_temperature,
-                       train_epochs=args.epochs, device=device, train_mb_size=args.minibatch_size,
+                       train_epochs=args.epochs, device=device,
+                       train_mb_size=args.train_mb_size,
+                       eval_mb_size=args.eval_mb_size,
                        evaluator=eval_plugin)
     elif args.strategy == 'EWC':
         strategy = EWC(model, optimizer, criterion,
                        ewc_lambda=0.4, mode='online', decay_factor=0.1,
-                       train_epochs=args.epochs, device=device, train_mb_size=args.minibatch_size,
+                       train_epochs=args.epochs, device=device,
+                       train_mb_size=args.train_mb_size,
+                       eval_mb_size=args.eval_mb_size,
                        evaluator=eval_plugin)
     elif args.strategy == 'GDumb':
         strategy = GDumb(model, optimizer, criterion,
                          mem_size=args.mem_buff_size,
-                         train_epochs=args.epochs, device=device, train_mb_size=args.minibatch_size,
+                         train_epochs=args.epochs, device=device,
+                         train_mb_size=args.train_mb_size,
+                         eval_mb_size=args.eval_mb_size,
                          evaluator=eval_plugin)
     elif args.strategy == 'ER':
         strategy = Replay(model, optimizer, criterion,
                           mem_size=args.mem_buff_size,
-                          train_epochs=args.epochs, device=device, train_mb_size=args.minibatch_size,
+                          train_epochs=args.epochs, device=device,
+                          train_mb_size=args.train_mb_size,
+                          eval_mb_size=args.eval_mb_size,
                           evaluator=eval_plugin)
 
     # for j in range(len(scenario.train_stream)):
@@ -296,8 +306,10 @@ if __name__ == '__main__':
     parser.add_argument('--hs', type=int, default=1024, help='MLP hidden size.')
     parser.add_argument('--epochs', type=int, default=1,
                         help='Number of training epochs.')
-    parser.add_argument('--minibatch_size', type=int, default=100,
-                        help='Minibatch size.')
+    parser.add_argument('--train_mb_size', type=int, default=100,
+                        help='Train minibatch size.')
+    parser.add_argument('--eval_mb_size', type=int, default=100,
+                        help='Test minibatch size.')
     parser.add_argument('--mem_buff_size', type=int, default=1000,
                         help='Memory buffer size for replay methods(GDumb,ER)')
     parser.add_argument('--cuda', type=int, default=0,

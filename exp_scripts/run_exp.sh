@@ -14,7 +14,8 @@ dataset=(CORe50 RotatedMNIST RotatedCIFAR10 CLStream51)
 strategy=(LwF EWC GDumb ER TrainPool)
 strategy=(TrainPool)
 
-mini_batch_size='16'
+train_mb_size='16'
+eval_mb_size='16'
 
 tp_pool_type='6CNN'
 tp_number_of_nns_to_train='6'
@@ -97,8 +98,8 @@ do
     fi
     for (( k=0; k<${#tp_predict_methods[@]}; k++ ))
     do
-      command_args="--base_dir $base_dir --dataset ${dataset[$j]} --strategy ${strategy[$i]} --minibatch_size ${mini_batch_size} --cuda ${cuda}"
-          log_file_name="${dataset[$j]}_${strategy[$i]}_mb_${mini_batch_size}"
+      command_args="--base_dir $base_dir --dataset ${dataset[$j]} --strategy ${strategy[$i]} --train_mb_size ${train_mb_size} --eval_mb_size ${eval_mb_size} --cuda ${cuda}"
+          log_file_name="${dataset[$j]}_${strategy[$i]}_t_mb_${train_mb_size}_e_mb_${eval_mb_size}"
       case ${strategy[$i]} in
         LwF)
           command_args="${command_args} --module ${model} --optimizer ${optimizer} --lr ${l_rate} --hs 1024"
