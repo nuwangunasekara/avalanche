@@ -15,7 +15,7 @@ strategy=(LwF EWC GDumb ER TrainPool)
 strategy=(TrainPool)
 
 train_mb_size='16'
-eval_mb_size='16'
+eval_mb_size='1'
 
 tp_pool_type='6CNN'
 tp_number_of_nns_to_train='6'
