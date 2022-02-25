@@ -1176,7 +1176,7 @@ class MultiMLP(nn.Module):
                     final_votes = self.get_majority_vote_from_nets(
                         x, x_flatten, r,
                         weights_for_each_network=weights_for_frozen_nns,
-                        add_best_training_nn_votes=True if self.auto_detect_tasks else False,
+                        add_best_training_nn_votes=True if self.auto_detect_tasks and best_matched_frozen_nn_idx < 0 else False,
                         predictor=self.task_detector_type)
                 else:
                     final_votes = \
@@ -1290,6 +1290,7 @@ class MultiMLP(nn.Module):
             if task_detected:
                 self.add_nn_with_lowest_loss_to_frozen_list()
                 self.reset_one_class_detectors_and_loss_estimators_seen_task_ids()
+                self.reset()
 
         if (self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_HT or self.task_detector_type == PREDICT_METHOD_ONE_CLASS) and use_instances_for_task_detector_training:
             pass
