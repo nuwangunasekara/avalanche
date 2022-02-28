@@ -129,7 +129,7 @@ def main(args):
         scenario.n_classes = 10
     elif args.dataset == 'CLStream51':
         scenario = CLStream51(scenario='instance', seed=10, eval_num=None,
-                              dataset_root='/Scratch/ng98/CL/avalanche_data/',
+                              dataset_root='/Scratch/repository/ng98/avalanche_data/',
                               no_novelity_detection=True
                               )
         input_size = 3 * 224 * 224
