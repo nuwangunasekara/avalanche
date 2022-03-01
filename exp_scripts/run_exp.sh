@@ -10,8 +10,9 @@ clean_dir="TRUE"
 
 dataset=(LED_a RotatedMNIST RotatedCIFAR10 CORe50 CLStream51)
 dataset=(CORe50 RotatedMNIST RotatedCIFAR10 )
-dataset=(RotatedMNIST RotatedCIFAR10)
+dataset=(RotatedMNIST RotatedCIFAR10 CORe50 CLStream51)
 strategy=(LwF EWC GDumb ER TrainPool)
+strategy=(LwF EWC GDumb ER)
 strategy=(TrainPool)
 
 train_mb_size='16'
@@ -20,7 +21,8 @@ eval_mb_size='1'
 tp_pool_type='6CNN'
 tp_number_of_nns_to_train='6'
 tp_predict_methods_array=('ONE_CLASS' 'ONE_CLASS_end' 'MAJORITY_VOTE' 'RANDOM' 'NAIVE_BAYES' 'NAIVE_BAYES_end' 'TASK_ID_KNOWN' 'HT')
-tp_predict_methods_array=('NAIVE_BAYES')
+tp_predict_methods_array=('MAJORITY_VOTE' 'RANDOM' 'TASK_ID_KNOWN')
+tp_predict_methods_array=('NAIVE_BAYES' 'ONE_CLASS' 'HT')
 #tp_reset_tp='rst'
 tp_reset_tp='no_rst'
 #tp_use_one_class_probas='no_use_p'
@@ -34,7 +36,7 @@ train_task_predictor_at_the_end_default='DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_
 
 # exp/scripts/train_pool.py sets internal variable use_static_f_ex to True if train_task_predictor_at_the_end_default='WITH_ACCUMULATED_STATIC_FEATURES'
 # But it is best to set it externally via --use_static_f_ex
-tp_use_static_f_ex='no-use_st_fx'
+#tp_use_static_f_ex='no-use_st_fx'
 tp_use_static_f_ex='use_st_fx'
 
 tp_train_nn_using_ex_static_f='no-t_nn_with_ex_st_f'
