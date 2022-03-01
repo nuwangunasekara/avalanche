@@ -27,8 +27,8 @@ tp_reset_tp='no_rst'
 tp_use_one_class_probas='use_p'
 #tp_use_weights_from_task_detectors='no_use_w'
 tp_use_weights_from_task_detectors='use_w'
-tp_auto_detect_tasks='no_dtk'
-#tp_auto_detect_tasks='dtk'
+tp_auto_detect_tasks='no_autotdk'
+#tp_auto_detect_tasks='autotdk'
 # DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END, WITH_ACCUMULATED_INSTANCES, WITH_ACCUMULATED_LEARNED_FEATURES, WITH_ACCUMULATED_STATIC_FEATURES
 train_task_predictor_at_the_end_default='DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END'
 
@@ -156,7 +156,7 @@ do
             tp_use_weights_from_task_detectors_cmd='--no-use_weights_from_task_detectors'
           fi
 
-          if [ "${tp_auto_detect_tasks}" == "dtk" ]; then
+          if [ "${tp_auto_detect_tasks}" == "autotdk" ]; then
             tp_auto_detect_tasks_cmd='--auto_detect_tasks'
           else
             tp_auto_detect_tasks_cmd='--no-auto_detect_tasks'
