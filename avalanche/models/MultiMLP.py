@@ -1176,7 +1176,7 @@ class MultiMLP(nn.Module):
                     final_votes = self.get_majority_vote_from_nets(
                         x, x_flatten, r,
                         weights_for_each_network=weights_for_frozen_nns,
-                        add_best_training_nn_votes=True if self.auto_detect_tasks and best_matched_frozen_nn_idx < 0 else False,
+                        add_best_training_nn_votes=True if self.auto_detect_tasks and len(self.frozen_nets) == 0 else False,
                         predictor=self.task_detector_type)
                 else:
                     final_votes = \
