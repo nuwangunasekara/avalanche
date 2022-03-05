@@ -14,6 +14,19 @@ pd.set_option('display.width', None)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-r", "--resultsDir", type=str, help="Results directory", default='/Users/ng98/Desktop/results/results/no_reset_no_use_probas_no_use_weights')
+
+parser.add_argument('--plot_eval_after_training_each_task', dest='plot_eval_after_training_each_task',
+                    action='store_true')
+parser.add_argument('--no-plot_eval_after_training_each_task', dest='plot_eval_after_training_each_task',
+                    action='store_false')
+parser.set_defaults(plot_eval_after_training_each_task=True)
+
+parser.add_argument('--plot_avg', dest='plot_avg',
+                    action='store_true')
+parser.add_argument('--no-plot_avg', dest='plot_avg',
+                    action='store_false')
+parser.set_defaults(plot_avg=False)
+
 args = parser.parse_args()
 
 fig_title = None
@@ -168,9 +181,10 @@ for d in datasets:
                 exps = p_df['training_exp'].unique()
                 # p_df_avg_eval_acc_for_exp = p_df.groupby(['training_exp'])['eval_accuracy'].mean()
                 p_df_avg_eval_acc_for_exp = p_df.groupby(['training_exp'])['eval_accuracy'].mean()
-
-                ax.plot(exps, p_df_avg_eval_acc_for_exp, label=label, color=color, linestyle=line_type, marker=".")
-                ax.plot(exps, np.ones(len(exps)) * p_df_avg_eval_acc_for_exp.mean(), label=label+'_avg', color=color, linestyle='dotted')
+                if args.plot_eval_after_training_each_task:
+                    ax.plot(exps, p_df_avg_eval_acc_for_exp, label=label, color=color, linestyle=line_type, marker=".")
+                if args.plot_avg:
+                    ax.plot(exps, np.ones(len(exps)) * p_df_avg_eval_acc_for_exp.mean(), label=label+'_avg', color=color, linestyle='dotted')
         axes.append(ax)
         col += 1
     rows += 1
