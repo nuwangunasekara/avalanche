@@ -10,15 +10,20 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-r", "--resultsDir", type=str, help="Results directory", default='/Users/ng98/Desktop/results/results/reset_oneclass_reset_loss_estd_include_best_tr_seed_0_no_task_detect_WITH_ACCUMULATED_STATIC_FEATURES_NB/logs/exp_logs')
+
+parser.add_argument('--task_predictor', type=str, default='NB',
+                    choices=['NB', 'HT', 'OC'],
+                    help='Task predictor to plot AUC for: '
+                         'NB, HT, OC')
 args = parser.parse_args()
 
 
 def plot_roc_cur(ax, fper, tper, auc, title_prefix):
-    ax.plot(fper, tper, color='orange', label='ROC')
-    ax.plot([0, 1], [0, 1], color='darkblue', linestyle='--')
+    ax.plot(fper, tper, color='deeppink', label='ROC curve (area = {0:0.2f})'.format(auc))
+    ax.plot([0, 1], [0, 1], "k--", lw=2)
     ax.set_xlabel('False Positive Rate')
     ax.set_ylabel('True Positive Rate')
-    ax.set_title(title_prefix + ': ROC Curve. AUC = ' + str(round(auc, 3)))
+    ax.set_title(title_prefix)
     ax.legend()
 
 
@@ -95,20 +100,20 @@ def read_file_plot_roc_cur_auc(file_name, ax, title_prefix, numpy_file=False):
         ax.plot(
             fpr["micro"],
             tpr["micro"],
-            label="micro-average ROC curve (area = {0:0.2f})".format(roc_auc["micro"]),
+            label="ROC curve (area = {0:0.2f})".format(roc_auc["micro"]),
             color="deeppink",
-            linestyle=":",
-            linewidth=4,
+            # linestyle=":",
+            # linewidth=4,
         )
 
-        ax.plot(
-            fpr["macro"],
-            tpr["macro"],
-            label="macro-average ROC curve (area = {0:0.2f})".format(roc_auc["macro"]),
-            color="navy",
-            linestyle=":",
-            linewidth=4,
-        )
+        # ax.plot(
+        #     fpr["macro"],
+        #     tpr["macro"],
+        #     label="macro-average ROC curve (area = {0:0.2f})".format(roc_auc["macro"]),
+        #     color="navy",
+        #     linestyle=":",
+        #     linewidth=4,
+        # )
         # print ROC for each one class task detector
         # colors = cycle(["aqua", "darkorange", "cornflowerblue", "red", "green", "blue", "pink", "yellow", "grey", "darkgreen", "brown"])
         # for i, color in zip(range(n_classes), colors):
@@ -125,7 +130,7 @@ def read_file_plot_roc_cur_auc(file_name, ax, title_prefix, numpy_file=False):
         ax.set_ylim([0.0, 1.05])
         ax.set_xlabel("False Positive Rate")
         ax.set_ylabel("True Positive Rate")
-        ax.set_title('{}: ROC Curve. AUC micro = {} macro = {}'.format(title_prefix, round(roc_auc["micro"],3), round(roc_auc["macro"],3)))
+        ax.set_title('{}'.format(title_prefix))
         # ax.set_title("Some extension of Receiver operating characteristic to multiclass")
         ax.legend(loc="lower right")
     else:
@@ -145,7 +150,7 @@ def read_file_plot_roc_cur_auc(file_name, ax, title_prefix, numpy_file=False):
         plot_roc_cur(ax, fper, tper, roc_auc, title_prefix)
 
 
-datasets = ('CORe50', 'RotatedMNIST', 'RotatedCIFAR10', 'CLStream51')
+datasets = ('CORe50', 'RotatedMNIST', 'RotatedCIFAR10')
 fig = plt.figure(constrained_layout=True, figsize=(5, 10))
 command = subprocess.Popen('pwd | xargs basename',
                            shell=True, stdout=subprocess.PIPE)
@@ -159,28 +164,16 @@ col = 0
 for d in datasets:
     ax = fig.add_subplot(gs[rows, col], label=d)
     f = None
-    command = subprocess.Popen("find " + args.resultsDir + " -iname '*_Nets_NB.npy' | grep " + d,
+
+    file_pattern = "'*_Nets_" + args.task_predictor + (".csv'" if args.task_predictor == "OC" else ".npy'")
+    numpy_file = False if args.task_predictor == "OC" else True
+    command = subprocess.Popen("find " + args.resultsDir + " -iname " + file_pattern + " | grep " + d,
                                shell=True, stdout=subprocess.PIPE)
+
     for line in command.stdout.readlines():
         f = line.decode("utf-8").replace('\n', '')
         print(f)
-        read_file_plot_roc_cur_auc(f, ax, d, numpy_file=True)
-
-    if f is None:
-        command = subprocess.Popen("find " + args.resultsDir + " -iname '*_Nets_HT.npy' | grep " + d,
-                                   shell=True, stdout=subprocess.PIPE)
-        for line in command.stdout.readlines():
-            f = line.decode("utf-8").replace('\n', '')
-            print(f)
-            read_file_plot_roc_cur_auc(f, ax, d, numpy_file=True)
-
-    if f is None:
-        command = subprocess.Popen("find " + args.resultsDir + " -iname '*Nets_OC.csv' | grep " + d,
-                                   shell=True, stdout=subprocess.PIPE)
-        for line in command.stdout.readlines():
-            f = line.decode("utf-8").replace('\n', '')
-            print(f)
-            read_file_plot_roc_cur_auc(f, ax, d)
+        read_file_plot_roc_cur_auc(f, ax, d, numpy_file=numpy_file)
 
     rows += 1
 
