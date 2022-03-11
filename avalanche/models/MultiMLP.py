@@ -1162,8 +1162,7 @@ class MultiMLP(nn.Module):
                             self.frozen_nets[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test[true_task_id] += r
                 else:
                     if len(self.frozen_nets) >= 0:
-                        if not self.auto_detect_tasks:
-                            print('Index error for best_matched_frozen_nn_index ({}) frozen_nets size ({}) '.format(best_matched_frozen_nn_idx, len(self.frozen_nets)))
+                        print('Index error for best_matched_frozen_nn_index ({}) frozen_nets size ({}) '.format(best_matched_frozen_nn_idx, len(self.frozen_nets)))
                     else:
                         print('No frozen nets. may use best training net for prediction')
 
