@@ -11,7 +11,7 @@ from avalanche.models.MultiMLP import SimpleCNN, CNN4
 from avalanche.models.MultiMLP import PREDICT_METHOD_ONE_CLASS, PREDICT_METHOD_MAJORITY_VOTE, PREDICT_METHOD_RANDOM, \
     PREDICT_METHOD_TASK_ID_KNOWN, PREDICT_METHOD_NW_CONFIDENCE, PREDICT_METHOD_NAIVE_BAYES, PREDICT_METHOD_HT
 from avalanche.models.MultiMLP import DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END, WITH_ACCUMULATED_INSTANCES, \
-    WITH_ACCUMULATED_LEARNED_FEATURES, WITH_ACCUMULATED_STATIC_FEATURES
+    WITH_ACCUMULATED_LEARNED_FEATURES, WITH_ACCUMULATED_STATIC_FEATURES, POOL_FROZEN, POOL_TRAINING
 from avalanche.evaluation.metrics import *
 from avalanche.logging import InteractiveLogger, TextLogger, TensorboardLogger, CSVLogger
 from avalanche.training.plugins import EvaluationPlugin
@@ -181,6 +181,12 @@ def main(args):
             train_task_predictor_at_the_end = WITH_ACCUMULATED_STATIC_FEATURES
             args.use_static_f_ex = True
 
+        prediction_pool = None
+        if args.prediction_pool == 'FROZEN':
+            prediction_pool = POOL_FROZEN
+        elif args.prediction_pool == 'TRAINING':
+            prediction_pool = POOL_TRAINING
+
         model = MultiMLP(
             num_classes=scenario.n_classes,
             use_threads=False,
@@ -202,7 +208,8 @@ def main(args):
             train_nn_using_ex_static_f=args.train_nn_using_ex_static_f,
             train_only_the_best_nn=args.train_only_the_best_nn,
             use_1_channel_pretrained_for_1_channel=args.use_1_channel_pretrained_for_1_channel,
-            use_quantized=args.use_quantized)
+            use_quantized=args.use_quantized,
+            prediction_pool=prediction_pool)
         optimizer = None
 
     criterion = torch.nn.CrossEntropyLoss()
@@ -411,6 +418,11 @@ if __name__ == '__main__':
     parser.add_argument('--no-use_quantized', dest='use_quantized',
                         action='store_false')
     parser.set_defaults(use_quantized=True)
+
+    parser.add_argument('--prediction_pool', type=str, default='FROZEN',
+                        choices=['FROZEN', 'TRAINING'],
+                        help='Pool to use for prediction: '
+                             'FROZEN, or TRAINING')
 
     args = parser.parse_args()
 
