@@ -1305,10 +1305,11 @@ class MultiMLP(nn.Module):
             xx = x_flatten
             c = c_flatten
 
-        self.train_nets.sort(key=lambda ann: ann.loss_estimator.estimation)
+        # self.train_nets.sort(key=lambda ann: ann.loss_estimator.estimation)
 
         if self.train_only_the_best_nn and self.total_samples_seen_for_train > 1000:
-            self.train_nets[0].train_net(xx, y, c, r, true_task_id, use_instances_for_task_detector_training,
+            nn_with_lowest_loss = self.get_train_nn_index_with_lowest_loss()
+            self.train_nets[nn_with_lowest_loss].train_net(xx, y, c, r, true_task_id, use_instances_for_task_detector_training,
                                                 self.use_one_class_probas,
                                                 static_features=static_features,
                                                 train_nn_using_ex_static_f=self.train_nn_using_ex_static_f)
