@@ -216,7 +216,7 @@ do
           fi
 
           command_args="${command_args} --module MultiMLP --pool_type ${tp_pool_type} --train_pool_max ${tp_max} --skip_back_prop_threshold ${tp_skip_back_prop_threshold} --task_detector_type ${tp_p_method} ${tp_reset_tp_cmd} ${tp_use_one_class_probas_cmd} ${tp_use_weights_from_task_detectors_cmd} ${tp_auto_detect_tasks_cmd} --train_task_predictor_at_the_end ${tp_train_task_p_at_end_type} ${tp_use_static_f_ex_cmd} ${tp_train_nn_using_ex_static_f_cmd} ${tp_train_only_the_best_nn_cmd} ${tp_use_1_channel_pretrained_for_1_channel_cmd} ${tp_use_quantized_cmd} ${tp_prediction_pool_cmd} --adwin_delta_in_log10 ${tp_adwin_delta_in_log10}"
-          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_max}_${tp_predict_method}_${tp_reset_tp}_${tp_use_one_class_probas}_${tp_use_weights_from_task_detectors}_${tp_auto_detect_tasks}_${tp_train_task_p_at_end_type}_${tp_use_static_f_ex}_${tp_train_nn_using_ex_static_f}_${tp_train_only_the_best_nn}_${tp_use_1_channel_pretrained_for_1_channel}_${tp_use_quantized}_bp${tp_skip_back_prop_threshold}_${tp_prediction_pool}_A${adwin_delta_in_log10}"
+          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_max}_${tp_predict_method}_${tp_reset_tp}_${tp_use_one_class_probas}_${tp_use_weights_from_task_detectors}_${tp_auto_detect_tasks}_${tp_train_task_p_at_end_type}_${tp_use_static_f_ex}_${tp_train_nn_using_ex_static_f}_${tp_train_only_the_best_nn}_${tp_use_1_channel_pretrained_for_1_channel}_${tp_use_quantized}_bp${tp_skip_back_prop_threshold}_${tp_prediction_pool}_A${tp_adwin_delta_in_log10}"
           ;;
         *)
           command_args=""
