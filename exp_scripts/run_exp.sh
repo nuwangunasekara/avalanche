@@ -20,7 +20,7 @@ train_mb_size='16'
 eval_mb_size='1'
 
 tp_pool_type='6CNN'
-tp_max='6'
+tp_max='12'
 tp_predict_methods_array=('ONE_CLASS' 'ONE_CLASS_end' 'MAJORITY_VOTE' 'RANDOM' 'NAIVE_BAYES' 'NAIVE_BAYES_end' 'TASK_ID_KNOWN' 'HT')
 tp_predict_methods_array=('MAJORITY_VOTE' 'RANDOM' 'TASK_ID_KNOWN')
 tp_predict_methods_array=('NAIVE_BAYES' 'ONE_CLASS' 'HT')
@@ -35,8 +35,8 @@ tp_use_one_class_probas='use_p'
 tp_use_weights_from_task_detectors='no_use_w'
 #tp_use_weights_from_task_detectors='use_w'
 
-tp_auto_detect_tasks='no_autotdk'
-#tp_auto_detect_tasks='autotdk'
+#tp_auto_detect_tasks='no_autotdk'
+tp_auto_detect_tasks='autotdk'
 
 # DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END, WITH_ACCUMULATED_INSTANCES, WITH_ACCUMULATED_LEARNED_FEATURES, WITH_ACCUMULATED_STATIC_FEATURES
 train_task_predictor_at_the_end_default='DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END'
