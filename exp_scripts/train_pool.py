@@ -190,8 +190,8 @@ def main(args):
         model = MultiMLP(
             num_classes=scenario.n_classes,
             use_threads=False,
-            loss_estimator_delta=1e-3,
-            number_of_mlps_to_train=args.number_of_mpls_to_train,
+            loss_estimator_delta=pow(10, args.adwin_delta_in_log10),
+            train_pool_max=args.train_pool_max,
             predict_method=predict_method,
             nn_pool_type=args.pool_type,
             back_prop_skip_loss_threshold=args.skip_back_prop_threshold,
@@ -331,8 +331,8 @@ if __name__ == '__main__':
                         help='Optimizer type')
     parser.add_argument('--base_dir', type=str, default='/Users/ng98/Desktop/avalanche_test',
                         help='Base Directory')
-    parser.add_argument('--number_of_mpls_to_train', type=int, default=6,
-                        help='Number of MPLs to train for MultiMLP.')
+    parser.add_argument('--train_pool_max', type=int, default=6,
+                        help='Maximum size of the training pool.')
     parser.add_argument('--pool_type', type=str, default='6CNN',
                         help='Pool type for MultiMLP.')
     parser.add_argument('--task_detector_type', type=str, default='ONE_CLASS',
@@ -423,6 +423,9 @@ if __name__ == '__main__':
                         choices=['FROZEN', 'TRAINING'],
                         help='Pool to use for prediction: '
                              'FROZEN, or TRAINING')
+
+    parser.add_argument('--adwin_delta_in_log10', type=float, default=-3.0,
+                        help='adwin_delta_in_log10')
 
     args = parser.parse_args()
 
