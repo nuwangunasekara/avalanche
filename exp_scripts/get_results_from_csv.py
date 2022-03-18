@@ -42,6 +42,7 @@ df_final_results = pd.DataFrame(columns=['dataset', 'strategy', 'sub_strategy', 
 df_all = pd.DataFrame(columns=['dataset', 'strategy', 'sub_strategy', 'eval_accuracy', 'forgetting', 'correct_net_percentage'])
 
 for csv_file in csv_files:
+    print(csv_file)
     log_file = csv_file.replace('/csv_data/', '/exp_logs/').replace('/eval_results.csv', '')
     df_frozen, df_correct = get_net_info(log_file)
     df = pd.read_csv(csv_file)
@@ -72,6 +73,7 @@ for csv_file in csv_files:
         sub_strategy = 'NA'
 
     tmp_df_all = df.copy(deep=True)
+    print(dataset)
     tmp_df_all.loc[:, 'dataset'] = dataset
     tmp_df_all.loc[:, 'strategy'] = strategy
     tmp_df_all.loc[:, 'sub_strategy'] = sub_strategy
