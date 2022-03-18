@@ -7,7 +7,7 @@ from avalanche.benchmarks.classic.stream51 import CLStream51
 
 from avalanche.training.strategies import *
 from avalanche.models import *
-from avalanche.models.MultiMLP import SimpleCNN, CNN4
+from avalanche.models.MultiMLP import SimpleCNN, CNN4, count_parameters, print_summary
 from avalanche.models.MultiMLP import PREDICT_METHOD_ONE_CLASS, PREDICT_METHOD_MAJORITY_VOTE, PREDICT_METHOD_RANDOM, \
     PREDICT_METHOD_TASK_ID_KNOWN, PREDICT_METHOD_NW_CONFIDENCE, PREDICT_METHOD_NAIVE_BAYES, PREDICT_METHOD_HT
 from avalanche.models.MultiMLP import DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END, WITH_ACCUMULATED_INSTANCES, \
@@ -110,10 +110,12 @@ def main(args):
         scenario = RotatedMNIST_di(4, seed=None, rotations_list=(0, 90, 180, -90))
         input_size = 28 * 28
         num_channels = 1
+        x_shape=(1, 28, 28)
     elif args.dataset == 'RotatedCIFAR10':
         scenario = RotatedCIFAR10_di(4, seed=None, rotations_list=(0, 90, 180, -90))
         input_size = 3 * 32 * 32
         num_channels = 3
+        x_shape = (3, 32, 32)
     elif args.dataset == 'LED_a' or args.dataset == 'LED_a_ex':
         input_size = 24
         num_channels = 0
@@ -127,6 +129,7 @@ def main(args):
         input_size = 3 * 32 * 32
         num_channels = 3
         scenario.n_classes = 10
+        x_shape = (3, 32, 32)
     elif args.dataset == 'CLStream51':
         scenario = CLStream51(scenario='instance', seed=10, eval_num=None,
                               dataset_root='/Scratch/ng98/CL/avalanche_data/',
@@ -134,6 +137,7 @@ def main(args):
                               )
         input_size = 3 * 224 * 224
         num_channels = 3
+        x_shape = (3, 224, 224)
     # exit(0)
 
     if args.module == 'SimpleMLP' or args.module == 'SimpleCNN' or args.module == 'CNN4':
@@ -143,6 +147,10 @@ def main(args):
             model = CNN4(num_classes=scenario.n_classes, num_channels=num_channels)
         else:
             model = SimpleCNN(num_classes=scenario.n_classes, num_channels=num_channels)
+
+        print_summary(model, x_shape)
+        print('Number of parameters: {}'.format(count_parameters(model)))
+
         if args.optimizer == 'SGD':
             optimizer = torch.optim.SGD(model.parameters(), lr=args.lr)
         elif args.optimizer == 'Adam':

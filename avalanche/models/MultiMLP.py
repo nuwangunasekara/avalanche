@@ -23,7 +23,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision import transforms
 import torchvision.models.quantization as models
-from torch.nn.quantized import functional as qF
+from torchsummary import summary
 
 # import network_Gray_ResNet
 from avalanche.models import network_Gray_ResNet
@@ -68,6 +68,12 @@ NO_OF_CHANNELS = 3
 
 POOL_FROZEN = 0
 POOL_TRAINING = 1
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+def print_summary(model, input_dims: tuple):
+    summary(model, input_dims)
 
 def create_static_feature_extractor(
         device=None,
@@ -499,6 +505,8 @@ class ANN:
             else:
                 number_of_channels = self.x_shape[1]
             self.net = SimpleCNN(num_classes=self.num_classes, num_channels=number_of_channels)
+            print_summary(self.net, self.x_shape)
+            print('Number of parameters: {}'.format(count_parameters(self.net)))
         else:
             pass
             # self.net = PyNet(hidden_layers=self.hidden_layers_for_MLP, num_classes=self.num_classes,
