@@ -61,10 +61,10 @@ tp_use_quantized='no-use_Q'
 tp_skip_back_prop_threshold='0.0'
 #tp_skip_back_prop_threshold='0.3'
 
-tp_prediction_pool='TR'
-#tp_prediction_pool='FR'
+#tp_prediction_pool='TR'
+tp_prediction_pool='FR'
 
-tp_adwin_delta_in_log10='-5.0'
+tp_adwin_delta_in_log10='-3.0'
 
 model='SimpleCNN'
 model='CNN4'
