@@ -1235,7 +1235,8 @@ class MultiMLP(nn.Module):
                 if self.use_weights_from_task_detectors and (
                         self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or
                         self.task_detector_type == PREDICT_METHOD_HT or
-                        self.task_detector_type == PREDICT_METHOD_ONE_CLASS):
+                        self.task_detector_type == PREDICT_METHOD_ONE_CLASS or
+                        self.task_detector_type == PREDICT_METHOD_RANDOM):
                     if best_matched_frozen_nn_idx < 0:
                         print(
                             'No frozen nets. may use best training net for prediction for PREDICT_METHOD_NAIVE_BAYES or PREDICT_METHOD_HT or PREDICT_METHOD_ONE_CLASS')
