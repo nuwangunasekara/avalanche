@@ -7,7 +7,7 @@ from avalanche.benchmarks.classic.stream51 import CLStream51
 
 from avalanche.training.strategies import *
 from avalanche.models import *
-from avalanche.models.MultiMLP import SimpleCNN, CNN4, count_parameters, print_summary
+from avalanche.models.MultiMLP import SimpleCNN, CNN4, count_parameters
 from avalanche.models.MultiMLP import PREDICT_METHOD_ONE_CLASS, PREDICT_METHOD_MAJORITY_VOTE, PREDICT_METHOD_RANDOM, \
     PREDICT_METHOD_TASK_ID_KNOWN, PREDICT_METHOD_NW_CONFIDENCE, PREDICT_METHOD_NAIVE_BAYES, PREDICT_METHOD_HT
 from avalanche.models.MultiMLP import DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END, WITH_ACCUMULATED_INSTANCES, \

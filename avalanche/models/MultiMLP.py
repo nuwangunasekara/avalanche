@@ -23,7 +23,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision import transforms
 import torchvision.models.quantization as models
-from torchsummary import summary
+# from torchsummary import summary
 
 # import network_Gray_ResNet
 from avalanche.models import network_Gray_ResNet
@@ -72,9 +72,9 @@ POOL_TRAINING = 1
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-def print_summary(model, input_dims: tuple):
-    i_dims = input_dims[1:len(input_dims)] if len(input_dims) == 4 else input_dims
-    summary(model, tuple(i_dims))
+# def print_summary(model, input_dims: tuple):
+#     i_dims = input_dims[1:len(input_dims)] if len(input_dims) == 4 else input_dims
+#     summary(model, tuple(i_dims))
 
 def create_static_feature_extractor(
         device=None,
