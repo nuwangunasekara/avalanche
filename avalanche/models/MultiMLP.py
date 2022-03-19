@@ -73,7 +73,8 @@ def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 def print_summary(model, input_dims: tuple):
-    summary(model, input_dims[1:len(input_dims)] if len(input_dims) == 4 else input_dims)
+    i_dims = input_dims[1:len(input_dims)] if len(input_dims) == 4 else input_dims
+    summary(model, tuple(i_dims))
 
 def create_static_feature_extractor(
         device=None,
