@@ -506,7 +506,7 @@ class ANN:
             else:
                 number_of_channels = self.x_shape[1]
             self.net = SimpleCNN(num_classes=self.num_classes, num_channels=number_of_channels)
-            print_summary(self.net, self.x_shape)
+            # print_summary(self.net, self.x_shape)
             print('Number of parameters: {}'.format(count_parameters(self.net)))
         else:
             pass

@@ -148,7 +148,7 @@ def main(args):
         else:
             model = SimpleCNN(num_classes=scenario.n_classes, num_channels=num_channels)
 
-        print_summary(model, x_shape)
+        # print_summary(model, x_shape)
         print('Number of parameters: {}'.format(count_parameters(model)))
 
         if args.optimizer == 'SGD':
