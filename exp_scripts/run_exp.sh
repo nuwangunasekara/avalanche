@@ -32,11 +32,11 @@ tp_reset_tp='no_rst'
 #tp_use_one_class_probas='no_use_p'
 tp_use_one_class_probas='use_p'
 
-tp_use_weights_from_task_detectors='no_use_w'
-#tp_use_weights_from_task_detectors='use_w'
+#tp_use_weights_from_task_detectors='no_use_w'
+tp_use_weights_from_task_detectors='use_w'
 
-#tp_auto_detect_tasks='no_autotdk'
-tp_auto_detect_tasks='autotdk'
+tp_auto_detect_tasks='no_autotdk'
+#tp_auto_detect_tasks='autotdk'
 
 # DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END, WITH_ACCUMULATED_INSTANCES, WITH_ACCUMULATED_LEARNED_FEATURES, WITH_ACCUMULATED_STATIC_FEATURES
 train_task_predictor_at_the_end_default='DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END'
@@ -52,8 +52,8 @@ tp_train_nn_using_ex_static_f='no-t_nn_with_ex_st_f'
 tp_train_only_the_best_nn='no-t_only_the_best'
 #tp_train_only_the_best_nn='t_only_the_best'
 
-tp_use_1_channel_pretrained_for_1_channel='no-use_1c_pt'
-#tp_use_1_channel_pretrained_for_1_channel='use_1c_pt'
+#tp_use_1_channel_pretrained_for_1_channel='no-use_1c_pt'
+tp_use_1_channel_pretrained_for_1_channel='use_1c_pt'
 
 tp_use_quantized='no-use_Q'
 #tp_use_quantized='use_Q'
