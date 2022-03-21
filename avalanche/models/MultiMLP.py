@@ -397,6 +397,7 @@ class ANN:
         self.task_detector_type = task_detector_type
         self.train_task_predictor_at_the_end = train_task_predictor_at_the_end
         # self.prediction_pool = prediction_pool
+        self.current_loss = None
 
         # status variables
         self.net = None
