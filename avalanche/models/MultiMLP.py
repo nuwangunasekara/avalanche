@@ -1233,24 +1233,28 @@ class MultiMLP(nn.Module):
                     else:
                         print('No frozen nets. may use best training net for prediction')
 
-                if self.use_weights_from_task_detectors and (
-                        self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or
-                        self.task_detector_type == PREDICT_METHOD_HT or
-                        self.task_detector_type == PREDICT_METHOD_ONE_CLASS or
-                        self.task_detector_type == PREDICT_METHOD_RANDOM):
-                    if best_matched_frozen_nn_idx < 0:
-                        print(
-                            'No frozen nets. may use best training net for prediction for PREDICT_METHOD_NAIVE_BAYES or PREDICT_METHOD_HT or PREDICT_METHOD_ONE_CLASS')
-                    final_votes = self.get_majority_vote_from_nets(
-                        x, x_flatten, r,
-                        weights_for_each_network=weights_for_frozen_nns,
-                        add_best_training_nn_votes=True if self.auto_detect_tasks and (len(self.frozen_nets) == 0 or best_matched_frozen_nn_idx == len(self.frozen_nets) ) else False,
-                        predictor=self.task_detector_type)
-                else:
                     if self.prediction_pool == POOL_FROZEN:
-                        final_votes = \
-                            self.frozen_nets[best_matched_frozen_nn_idx].net(x if self.frozen_nets[best_matched_frozen_nn_idx].network_type == NETWORK_TYPE_CNN else x_flatten)
-                    else:
+                        if self.use_weights_from_task_detectors and (
+                                self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or
+                                self.task_detector_type == PREDICT_METHOD_HT or
+                                self.task_detector_type == PREDICT_METHOD_ONE_CLASS or
+                                self.task_detector_type == PREDICT_METHOD_RANDOM):
+                            if best_matched_frozen_nn_idx < 0:
+                                print(
+                                    'No frozen nets. may use best training net for prediction for PREDICT_METHOD_NAIVE_BAYES or PREDICT_METHOD_HT or PREDICT_METHOD_ONE_CLASS')
+                            final_votes = self.get_majority_vote_from_nets(
+                                x, x_flatten, r,
+                                weights_for_each_network=weights_for_frozen_nns,
+                                add_best_training_nn_votes=True if self.auto_detect_tasks and (
+                                            len(self.frozen_nets) == 0 or best_matched_frozen_nn_idx == len(
+                                        self.frozen_nets)) else False,
+                                predictor=self.task_detector_type)
+                        else: # No weights from predictors
+                            final_votes = \
+                                self.frozen_nets[best_matched_frozen_nn_idx].net(x if self.frozen_nets[best_matched_frozen_nn_idx].network_type == NETWORK_TYPE_CNN else x_flatten)
+                    else: # POOL_TRAINING
+                        # if self.use_weights_from_task_detectors
+                        #     not implemented yet
                         final_votes = \
                             self.train_nets[best_matched_frozen_nn_idx].net(x if self.train_nets[best_matched_frozen_nn_idx].network_type == NETWORK_TYPE_CNN else x_flatten)
 
