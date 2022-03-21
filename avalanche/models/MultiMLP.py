@@ -983,7 +983,7 @@ class MultiMLP(nn.Module):
         idx = 0
         min_loss = float("inf")
         for i in range(len(self.train_nets)):
-            tmp_loss = self.train_nets[i].loss_estimator.estimation
+            tmp_loss = self.train_nets[i].loss_estimator.estimation if use_estimated_loss else self.train_nets[i].current_loss
             if tmp_loss < min_loss:
                 idx = i
                 min_loss = tmp_loss
