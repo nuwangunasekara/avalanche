@@ -577,6 +577,7 @@ class ANN:
         # backward propagation
         # print(self.net.linear[0].weight.data)
         self.loss = self.loss_f(outputs, y)
+        self.current_loss = self.loss.item()
         self.outputs = outputs.detach()
         # if self.prediction_pool == POOL_FROZEN:
         #     self.update_loss_estimator(copy_old=False)
@@ -589,7 +590,6 @@ class ANN:
         if copy_old:
             self.old_loss_estimator = deepcopy(self.loss_estimator)
         previous_estimated_loss = self.loss_estimator.estimation
-        self.current_loss = self.loss.item()
         self.loss_estimator.add_element(self.current_loss)
         self.accumulated_loss += self.current_loss
 
