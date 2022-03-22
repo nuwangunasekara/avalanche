@@ -1462,7 +1462,8 @@ class MultiMLP(nn.Module):
 
         if self.train_nets[nn_with_lowest_loss].task_detected:
             # preserve the old loss estimator on this NW as we are going to train NB with newly added NW
-            self.train_nets[nn_with_lowest_loss].loss_estimator = self.train_nets[nn_with_lowest_loss].old_loss_estimator
+            # self.train_nets[nn_with_lowest_loss].loss_estimator = self.train_nets[nn_with_lowest_loss].old_loss_estimator
+            pass
         self.train_nets[nn_with_lowest_loss].old_loss_estimator = None
 
         self.detected_task_id += 1
