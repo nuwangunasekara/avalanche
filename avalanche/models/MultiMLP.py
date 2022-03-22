@@ -1415,7 +1415,7 @@ class MultiMLP(nn.Module):
                         self.reset()
             else: # POOL_TRAINING
                 if self.total_samples_seen_for_train > 1000:
-                    self.train_nets[nn_with_lowest_loss].update_loss_estimator(copy_old=True)
+                    self.train_nets[nn_with_lowest_loss].update_loss_estimator(copy_old=False)
                     selected_network = nn_with_lowest_loss
                     task_detected = False
                     task_detected = self.train_nets[nn_with_lowest_loss].task_detected
