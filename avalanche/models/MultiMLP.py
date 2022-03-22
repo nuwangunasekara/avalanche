@@ -1418,10 +1418,10 @@ class MultiMLP(nn.Module):
                     self.train_nets[nn_with_lowest_loss].update_loss_estimator(copy_old=False)
                     selected_network = nn_with_lowest_loss
                     task_detected = False
-                    task_detected = self.train_nets[nn_with_lowest_loss].task_detected
-                    # for m in self.train_nets:
-                    #     if m.task_detected:
-                    #         task_detected = True
+                    # task_detected = self.train_nets[nn_with_lowest_loss].task_detected
+                    for m in self.train_nets:
+                        if m.task_detected:
+                            task_detected = True
                     if self.auto_detect_tasks and task_detected and len(self.train_nets) < self.train_pool_max:
                         self.add_to_train_pool(nn_with_lowest_loss)
                         selected_network = len(self.train_nets) -1
