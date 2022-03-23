@@ -760,7 +760,7 @@ class MultiMLP(nn.Module):
         self.frozen_nets = []  # type: List[ANN]
         self.frozen_net_module_paths = []
         self.heading_printed = False
-        self.samples_seen_for_train_after_drift = 0
+        self.samples_seen_for_train_after_dd = 0
         self.total_samples_seen_for_train = 0
         self.samples_per_each_task_at_train = {}
         self.samples_seen_for_test = 0
@@ -1281,7 +1281,7 @@ class MultiMLP(nn.Module):
             return final_votes
 
         else:  # train
-            self.samples_seen_for_train_after_drift += r
+            self.samples_seen_for_train_after_dd += r
             self.total_samples_seen_for_train += r
             if self.samples_per_each_task_at_train.get(true_task_id) is None:
                 self.samples_per_each_task_at_train[true_task_id] = r
@@ -1317,7 +1317,7 @@ class MultiMLP(nn.Module):
         # number_of_mlps_to_train = self.number_of_mlps_to_train
         # number_of_top_mlps_to_train = self.number_of_mlps_to_train // 2
 
-        # if self.samples_seen_for_train_after_drift < self.number_of_instances_to_train_using_all_mlps_at_start:
+        # if self.samples_seen_for_train_after_dd < self.number_of_instances_to_train_using_all_mlps_at_start:
         #     number_of_mlps_to_train = len(self.train_nets)
         #     number_of_top_mlps_to_train = len(self.train_nets) // 2
 
@@ -1344,7 +1344,7 @@ class MultiMLP(nn.Module):
                 #     nn_index = i
                 # else:
                 #     # Random train
-                #     off_set = ((self.samples_seen_for_train_after_drift + i) % (
+                #     off_set = ((self.samples_seen_for_train_after_dd + i) % (
                 #             len(self.train_nets) - number_of_top_mlps_to_train))
                 #     nn_index = number_of_top_mlps_to_train + off_set
 
@@ -1410,6 +1410,7 @@ class MultiMLP(nn.Module):
                         if m.task_detected:
                             task_detected = True
                     if task_detected:
+                        self.samples_seen_for_train_after_dd = 0
                         self.add_nn_with_lowest_loss_to_frozen_list()
                         self.reset_one_class_detectors_and_loss_estimators_seen_task_ids()
                         self.reset()
@@ -1422,7 +1423,8 @@ class MultiMLP(nn.Module):
                     for m in self.train_nets:
                         if m.task_detected:
                             task_detected = True
-                    if self.auto_detect_tasks and task_detected and len(self.train_nets) < self.train_pool_max:
+                    if self.auto_detect_tasks and self.samples_seen_for_train_after_dd > 100 and task_detected and len(self.train_nets) < self.train_pool_max:
+                        self.samples_seen_for_train_after_dd = 0
                         self.add_to_train_pool(nn_with_lowest_loss)
                         selected_network = len(self.train_nets) -1
 
@@ -1489,7 +1491,7 @@ class MultiMLP(nn.Module):
                   'list_type,'
                   'total_samples_seen_for_train,'
                   'samples_per_each_task_at_train,'
-                  'samples_seen_for_train_after_drift,'
+                  'samples_seen_for_train_after_dd,'
                   'this_name,'
                   'this_id,'
                   'this_frozen_id,'
@@ -1530,7 +1532,7 @@ class MultiMLP(nn.Module):
                 list_type,
                 self.total_samples_seen_for_train,
                 self.samples_per_each_task_at_train,
-                self.samples_seen_for_train_after_drift,
+                self.samples_seen_for_train_after_dd,
                 nn_l[i].model_name,
                 nn_l[i].id,
                 nn_l[i].frozen_id,
