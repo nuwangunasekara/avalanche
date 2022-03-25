@@ -721,7 +721,8 @@ class MultiMLP(nn.Module):
                  use_1_channel_pretrained_for_1_channel=False,
                  use_quantized=False,
                  prediction_pool=None,
-                 train_pool_max=None):
+                 train_pool_max=None,
+                 random_train_frozen_if_best=False):
         super().__init__()
 
         # configuration variables (which has the same name as init parameters)
@@ -754,6 +755,7 @@ class MultiMLP(nn.Module):
         self.use_quantized = use_quantized
         self.prediction_pool = prediction_pool
         self.train_pool_max = train_pool_max if train_pool_max is not None and train_pool_max > 6 else train_pool_max
+        self.random_train_frozen_if_best = random_train_frozen_if_best
 
         # status variables
         self.train_nets = []  # type: List[ANN]
@@ -876,7 +878,7 @@ class MultiMLP(nn.Module):
 
         if self.prediction_pool == POOL_FROZEN:
             if add_best_training_nn_votes:
-                i = self.get_train_nn_index_with_lowest_loss(use_estimated_loss=True)
+                i = self.get_nn_index_with_lowest_loss(self.train_nets, use_estimated_loss=True)
                 nn_list = self.train_nets
                 v = nn_list[i].get_votes(x, x_flatten)
 
@@ -980,11 +982,11 @@ class MultiMLP(nn.Module):
             p = self.nb_or_ht.predict_proba(ex_f.cpu())
         return p
 
-    def get_train_nn_index_with_lowest_loss(self, use_estimated_loss=True):
+    def get_nn_index_with_lowest_loss(self, nn_list, use_estimated_loss=True):
         idx = 0
         min_loss = float("inf")
-        for i in range(len(self.train_nets)):
-            tmp_loss = self.train_nets[i].loss_estimator.estimation if use_estimated_loss else self.train_nets[i].current_loss
+        for i in range(len(nn_list)):
+            tmp_loss = nn_list[i].loss_estimator.estimation if use_estimated_loss else nn_list[i].current_loss
             if tmp_loss < min_loss:
                 idx = i
                 min_loss = tmp_loss
@@ -1047,7 +1049,7 @@ class MultiMLP(nn.Module):
 
     @torch.no_grad()
     def add_nn_with_lowest_loss_to_frozen_list(self):
-        idx = self.get_train_nn_index_with_lowest_loss(use_estimated_loss=True)
+        idx = self.get_nn_index_with_lowest_loss(self.train_nets, use_estimated_loss=True)
         self.print_nn_list([self.train_nets[idx]], list_type='train_net', dumped_at='task_detect')
 
         for i in range(len(self.train_nets)):
@@ -1164,6 +1166,71 @@ class MultiMLP(nn.Module):
         else:
             preprocessed_x = x
         return feature_extractor(preprocessed_x).cpu()
+
+    def forward_pass(self, nn_list, **kwargs):
+        xx = kwargs["xx"]
+        r = kwargs["r"]
+        c = kwargs["c"]
+        y = kwargs["y"]
+        true_task_id = kwargs["true_task_id"]
+        use_instances_for_task_detector_training = kwargs["use_instances_for_task_detector_training"]
+        static_features = kwargs["static_features"]
+        t = []
+        for i in range(len(nn_list)):
+            if self.use_threads:
+                t.append(threading.Thread(target=net_train, args=(
+                nn_list[i], xx, r, c, y, true_task_id, use_instances_for_task_detector_training,
+                self.use_one_class_probas, static_features, self.train_nn_using_ex_static_f,)))
+            else:
+                nn_list[i].train_net(xx, y, c, r, true_task_id, use_instances_for_task_detector_training,
+                                             self.use_one_class_probas,
+                                             static_features=static_features,
+                                             train_nn_using_ex_static_f=self.train_nn_using_ex_static_f)
+        if self.use_threads:
+            for i in range(len(t)):
+                t[i].start()
+            for i in range(len(t)):
+                t[i].join()
+
+    def update_loss_estimator(self, nn_list):
+        t = []
+        for i in range(len(nn_list)):
+            if self.use_threads:
+                copy_old = False
+                t.append(threading.Thread(target=update_loss_estimator, args=(nn_list[i], copy_old,)))
+            else:
+                nn_list[i].update_loss_estimator(copy_old=False)
+        if self.use_threads:
+            for i in range(len(t)):
+                t[i].start()
+            for i in range(len(t)):
+                t[i].join()
+
+    def call_backprop(self, nn_list):
+        t = []
+        for i in range(len(nn_list)):
+            if self.use_threads:
+                t.append(threading.Thread(target=call_backprop, args=(nn_list[i],)))
+            else:
+                nn_list[i].call_backprop()
+        if self.use_threads:
+            for i in range(len(t)):
+                t[i].start()
+            for i in range(len(t)):
+                t[i].join()
+
+    def reset_loss_and_bp_buffers(self, nn_list):
+        t = []
+        for i in range(len(nn_list)):
+            if self.use_threads:
+                t.append(threading.Thread(target=reset_loss_and_bp_buffers, args=(nn_list[i],)))
+            else:
+                nn_list[i].reset_loss_and_bp_buffers()
+        if self.use_threads:
+            for i in range(len(t)):
+                t[i].start()
+            for i in range(len(t)):
+                t[i].join()
 
     def forward(self, x):
         r = x.shape[0]
@@ -1331,77 +1398,43 @@ class MultiMLP(nn.Module):
         # self.train_nets.sort(key=lambda ann: ann.loss_estimator.estimation)
 
         if self.train_only_the_best_nn and self.total_samples_seen_for_train > 1000:
-            nn_with_lowest_loss = self.get_train_nn_index_with_lowest_loss(use_estimated_loss=True)
+            nn_with_lowest_loss = self.get_nn_index_with_lowest_loss(self.train_nets, use_estimated_loss=True)
             self.train_nets[nn_with_lowest_loss].train_net(xx, y, c, r, true_task_id, use_instances_for_task_detector_training,
                                                 self.use_one_class_probas,
                                                 static_features=static_features,
                                                 train_nn_using_ex_static_f=self.train_nn_using_ex_static_f)
         else:
-            t = []
-            for i in range(len(self.train_nets)):
-                # if i < number_of_top_mlps_to_train:
-                #     # top most train
-                #     nn_index = i
-                # else:
-                #     # Random train
-                #     off_set = ((self.samples_seen_for_train_after_dd + i) % (
-                #             len(self.train_nets) - number_of_top_mlps_to_train))
-                #     nn_index = number_of_top_mlps_to_train + off_set
+            nn_list = []
+            if self.random_train_frozen_if_best and random.randint(0, 9) == 0:
+                forward_pass_both_lists = True
+                for i in range (len(self.train_nets)):
+                    nn_list.append(self.train_nets[i])
+                for i in range (len(self.frozen_nets)):
+                    nn_list.append(self.frozen_nets[i])
+            else:
+                forward_pass_both_lists = False
+                nn_list = self.train_nets
 
-                if self.use_threads:
-                    t.append(threading.Thread(target=net_train, args=(self.train_nets[i], xx, r, c, y, true_task_id, use_instances_for_task_detector_training, self.use_one_class_probas, static_features, self.train_nn_using_ex_static_f, )))
-                else:
-                    self.train_nets[i].train_net(xx, y, c, r, true_task_id, use_instances_for_task_detector_training,
-                                                        self.use_one_class_probas,
-                                                        static_features=static_features,
-                                                        train_nn_using_ex_static_f=self.train_nn_using_ex_static_f)
-            if self.use_threads:
-                for i in range(len(t)):
-                    t[i].start()
-                for i in range(len(t)):
-                    t[i].join()
+            self.forward_pass(nn_list,
+                              xx=xx,
+                              r=r,
+                              c=c,
+                              y=y,
+                              true_task_id=true_task_id,
+                              use_instances_for_task_detector_training=use_instances_for_task_detector_training,
+                              static_features=static_features)
 
-            nn_with_lowest_loss = self.get_train_nn_index_with_lowest_loss(use_estimated_loss= True if self.prediction_pool == POOL_FROZEN else False)
+            nn_with_lowest_loss = self.get_nn_index_with_lowest_loss(nn_list,
+                                                                     use_estimated_loss= True if self.prediction_pool == POOL_FROZEN and not forward_pass_both_lists else False)
             # outputs = deepcopy(self.train_nets[nn_with_lowest_loss].outputs.detach())
 
             if self.prediction_pool == POOL_FROZEN or self.total_samples_seen_for_train <= 1000:
-                t = []
-                for i in range(len(self.train_nets)):
-                    if self.use_threads:
-                        copy_old = False
-                        t.append(threading.Thread(target=update_loss_estimator, args=(self.train_nets[i],copy_old, )))
-                    else:
-                        self.train_nets[i].update_loss_estimator(copy_old=False)
-                if self.use_threads:
-                    for i in range(len(t)):
-                        t[i].start()
-                    for i in range(len(t)):
-                        t[i].join()
-
-                t = []
-                for i in range(len(self.train_nets)):
-                    if self.use_threads:
-                        t.append(threading.Thread(target=call_backprop, args=(self.train_nets[i], )))
-                    else:
-                        self.train_nets[i].call_backprop()
-                if self.use_threads:
-                    for i in range(len(t)):
-                        t[i].start()
-                    for i in range(len(t)):
-                        t[i].join()
-
-                t = []
-                for i in range(len(self.train_nets)):
-                    if self.use_threads:
-                        t.append(threading.Thread(target=reset_loss_and_bp_buffers, args=(self.train_nets[i], )))
-                    else:
-                        self.train_nets[i].reset_loss_and_bp_buffers()
-                if self.use_threads:
-                    for i in range(len(t)):
-                        t[i].start()
-                    for i in range(len(t)):
-                        t[i].join()
-
+                self.update_loss_estimator(nn_list)
+                if forward_pass_both_lists and nn_with_lowest_loss <= len(self.train_nets): # trained both training and frozen and frozen has the lowest loss.
+                    nn_list[nn_with_lowest_loss].call_backprop()
+                else:
+                    self.call_backprop(nn_list)
+                self.reset_loss_and_bp_buffers(nn_list)
 
             if self.prediction_pool == POOL_FROZEN:
                 if self.auto_detect_tasks:
@@ -1416,11 +1449,11 @@ class MultiMLP(nn.Module):
                         self.reset()
             else: # POOL_TRAINING
                 if self.total_samples_seen_for_train > 1000:
-                    self.train_nets[nn_with_lowest_loss].update_loss_estimator(copy_old=False)
+                    nn_list[nn_with_lowest_loss].update_loss_estimator(copy_old=False)
                     selected_network = nn_with_lowest_loss
                     task_detected = False
                     # task_detected = self.train_nets[nn_with_lowest_loss].task_detected
-                    for m in self.train_nets:
+                    for m in nn_list:
                         if m.task_detected:
                             task_detected = True
                     if self.auto_detect_tasks and self.samples_seen_for_train_after_dd > 100 and task_detected and len(self.train_nets) < self.train_pool_max:
@@ -1428,21 +1461,19 @@ class MultiMLP(nn.Module):
                         self.add_to_train_pool(nn_with_lowest_loss)
                         selected_network = len(self.train_nets) -1
 
-                    self.train_nets[nn_with_lowest_loss].old_loss_estimator = None
-
-                    self.train_nets[nn_with_lowest_loss].call_backprop()
-
+                    nn_list[nn_with_lowest_loss].old_loss_estimator = None
+                    nn_list[nn_with_lowest_loss].call_backprop()
                     self.nb_train(x_or_features, selected_network)
 
-                    for i in range(len(self.train_nets)):
-                        self.train_nets[i].reset_loss_and_bp_buffers()
+                    for i in range(len(nn_list)):
+                        nn_list[i].reset_loss_and_bp_buffers()
 
         # if (self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_HT or self.task_detector_type == PREDICT_METHOD_ONE_CLASS) and use_instances_for_task_detector_training:
         #     pass
 
-        self.train_nets[nn_with_lowest_loss].chosen_after_train += r
-        return self.train_nets[nn_with_lowest_loss].net(
-            x if self.train_nets[nn_with_lowest_loss].network_type == NETWORK_TYPE_CNN else x_flatten)
+        nn_list[nn_with_lowest_loss].chosen_after_train += r
+        return nn_list[nn_with_lowest_loss].net(
+            x if nn_list[nn_with_lowest_loss].network_type == NETWORK_TYPE_CNN else x_flatten)
 
     def add_to_train_pool(self, nn_with_lowest_loss):
         print("Adding item to training pool===")
@@ -1479,7 +1510,7 @@ class MultiMLP(nn.Module):
         if self.prediction_pool == POOL_FROZEN:
             self.add_to_frozen_pool()
         else: # POOL_TRAINING
-            nn_with_lowest_loss = self.get_train_nn_index_with_lowest_loss(use_estimated_loss=False)
+            nn_with_lowest_loss = self.get_nn_index_with_lowest_loss(self.train_nets, use_estimated_loss=False)
             self.add_to_train_pool(nn_with_lowest_loss)
 
     def print_stats_hader(self):

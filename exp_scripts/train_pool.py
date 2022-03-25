@@ -427,6 +427,13 @@ if __name__ == '__main__':
                         action='store_false')
     parser.set_defaults(use_quantized=True)
 
+    # random_train_frozen_if_best
+    parser.add_argument('--random_train_frozen_if_best', dest='random_train_frozen_if_best',
+                        action='store_true')
+    parser.add_argument('--no-random_train_frozen_if_best', dest='random_train_frozen_if_best',
+                        action='store_false')
+    parser.set_defaults(random_train_frozen_if_best=False)
+
     parser.add_argument('--prediction_pool', type=str, default='FROZEN',
                         choices=['FROZEN', 'TRAINING'],
                         help='Pool to use for prediction: '
