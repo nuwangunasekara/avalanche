@@ -217,7 +217,8 @@ def main(args):
             train_only_the_best_nn=args.train_only_the_best_nn,
             use_1_channel_pretrained_for_1_channel=args.use_1_channel_pretrained_for_1_channel,
             use_quantized=args.use_quantized,
-            prediction_pool=prediction_pool)
+            prediction_pool=prediction_pool,
+            random_train_frozen_if_best=args.random_train_frozen_if_best)
         optimizer = None
 
     criterion = torch.nn.CrossEntropyLoss()
