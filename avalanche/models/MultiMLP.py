@@ -1409,7 +1409,7 @@ class MultiMLP(nn.Module):
                                                 static_features=static_features,
                                                 train_nn_using_ex_static_f=self.train_nn_using_ex_static_f)
         else:
-            if self.random_train_frozen_if_best and random.randint(0, 9) == 0:
+            if self.random_train_frozen_if_best and random.randint(0, 9) < 3:
                 forward_pass_both_lists = True
                 for i in range (len(self.train_nets)):
                     nn_list.append(self.train_nets[i])
