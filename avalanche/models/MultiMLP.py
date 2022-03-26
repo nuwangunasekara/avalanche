@@ -1009,6 +1009,9 @@ class MultiMLP(nn.Module):
                                      'nn_model_file_name': nn_model_file_name})
 
     def clear_frozen_pool(self):
+        if len(self.frozen_nets) == 0:
+            return
+
         for i in range(len(self.frozen_net_module_paths)):
             save_model(self.frozen_nets[i],
                        self.frozen_net_module_paths[i]['abstract_model_file_name'],
@@ -1395,20 +1398,22 @@ class MultiMLP(nn.Module):
             xx = x_flatten
             c = c_flatten
 
-        # self.train_nets.sort(key=lambda ann: ann.loss_estimator.estimation)
-
+        self.clear_frozen_pool()
+        nn_list = []
         if self.train_only_the_best_nn and self.total_samples_seen_for_train > 1000:
-            nn_with_lowest_loss = self.get_nn_index_with_lowest_loss(self.train_nets, use_estimated_loss=True)
+            for i in range(len(self.train_nets)):
+                nn_list.append(self.train_nets[i])
+            nn_with_lowest_loss = self.get_nn_index_with_lowest_loss(nn_list, use_estimated_loss=True)
             self.train_nets[nn_with_lowest_loss].train_net(xx, y, c, r, true_task_id, use_instances_for_task_detector_training,
                                                 self.use_one_class_probas,
                                                 static_features=static_features,
                                                 train_nn_using_ex_static_f=self.train_nn_using_ex_static_f)
         else:
-            nn_list = []
             if self.random_train_frozen_if_best and random.randint(0, 9) == 0:
                 forward_pass_both_lists = True
                 for i in range (len(self.train_nets)):
                     nn_list.append(self.train_nets[i])
+                self.load_frozen_pool()
                 for i in range (len(self.frozen_nets)):
                     nn_list.append(self.frozen_nets[i])
             else:
