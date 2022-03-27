@@ -50,8 +50,8 @@ train_task_predictor_at_the_end_default='DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_
 #tp_use_static_f_ex='no-use_st_fx'
 tp_use_static_f_ex='use_st_fx'
 
-tp_train_nn_using_ex_static_f='no-t_nn_with_ex_st_f'
-#tp_train_nn_using_ex_static_f='t_nn_with_ex_st_f'
+#tp_train_nn_using_ex_static_f='no-t_nn_with_ex_st_f'
+tp_train_nn_using_ex_static_f='t_nn_with_ex_st_f'
 
 tp_train_only_the_best_nn='no-t_only_the_best'
 #tp_train_only_the_best_nn='t_only_the_best'
@@ -62,8 +62,8 @@ tp_use_1_channel_pretrained_for_1_channel='no-use_1c_pt'
 tp_use_quantized='no-use_Q'
 #tp_use_quantized='use_Q'
 
-#tp_random_train_frozen_if_best='no-RfB'
-tp_random_train_frozen_if_best='RfB'
+tp_random_train_frozen_if_best='no-RfB'
+#tp_random_train_frozen_if_best='RfB'
 
 tp_skip_back_prop_threshold='0.0'
 #tp_skip_back_prop_threshold='0.3'
