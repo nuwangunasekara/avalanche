@@ -157,6 +157,7 @@ def main(args):
             optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         else:
             optimizer = None
+        criterion = torch.nn.CrossEntropyLoss()
     elif args.module == 'MultiMLP':
         if args.task_detector_type == 'ONE_CLASS':
             predict_method = PREDICT_METHOD_ONE_CLASS
@@ -220,8 +221,7 @@ def main(args):
             prediction_pool=prediction_pool,
             random_train_frozen_if_best=args.random_train_frozen_if_best)
         optimizer = None
-
-    criterion = torch.nn.CrossEntropyLoss()
+        criterion = None
 
     command = subprocess.Popen("realpath " + args.base_dir, shell=True, stdout=subprocess.PIPE)
     for line in command.stdout.readlines():

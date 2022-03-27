@@ -379,7 +379,8 @@ class ANN:
                  loss_estimator_delta=1e-3,
                  task_detector_type=PREDICT_METHOD_ONE_CLASS,
                  back_prop_skip_loss_threshold=0.6,
-                 train_task_predictor_at_the_end=DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END):
+                 train_task_predictor_at_the_end=DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END,
+                 train_nn_using_ex_static_f=False):
         # configuration variables (which has the same name as init parameters)
         self.id = id
         self.frozen_id = None
@@ -398,6 +399,7 @@ class ANN:
         self.train_task_predictor_at_the_end = train_task_predictor_at_the_end
         # self.prediction_pool = prediction_pool
         self.current_loss = None
+        self.train_nn_using_ex_static_f = train_nn_using_ex_static_f
 
         # status variables
         self.net = None
@@ -525,9 +527,9 @@ class ANN:
 
     def train_net(self, x, y, c, r, true_task_id, use_instances_for_task_detector_training,
                   use_one_class_probas, static_features=None, train_nn_using_ex_static_f=False):
-        if train_nn_using_ex_static_f and static_features is not None:
-            xx = repeat_channel_1(static_features.view(static_features.shape[0], 64, -1)[:, None, :, :])
-            # xx = x
+        if self.train_nn_using_ex_static_f and static_features is not None:
+            # xx = repeat_channel_1(static_features.view(static_features.shape[0], 64, -1)[:, None, :, :])
+            xx = static_features.view(static_features.shape[0], 1, 64, -1)
         else:
             xx = x
         if self.net is None:
@@ -609,14 +611,14 @@ class ANN:
     def reset_loss_and_bp_buffers(self):
         self.optimizer.zero_grad()
         self.loss = None
-        self.outputs = None
+        # self.outputs = None
         self.old_loss_estimator = None
 
     def get_votes(self, x, x_flatten, static_features=None):
         if self.network_type == NETWORK_TYPE_CNN:
-            if static_features is not None:
-                xx = repeat_channel_1(static_features.view(static_features.shape[0], 64, -1)[:, None, :, :])
-                # xx = x
+            if self.train_nn_using_ex_static_f and static_features is not None:
+                # xx = repeat_channel_1(static_features.view(static_features.shape[0], 64, -1)[:, None, :, :])
+                xx = static_features.view(static_features.shape[0], 1, 64, -1)
             else:
                 xx = x
         else:
@@ -852,7 +854,8 @@ class MultiMLP(nn.Module):
                                   task_detector_type=self.task_detector_type,
                                   num_classes=self.num_classes,
                                   device=self.device,
-                                  train_task_predictor_at_the_end=self.train_task_predictor_at_the_end)
+                                  train_task_predictor_at_the_end=self.train_task_predictor_at_the_end,
+                                  train_nn_using_ex_static_f= self.train_nn_using_ex_static_f)
                     self.train_nets.append(tmp_ann)
                     self.available_nn_id += 1
 
@@ -995,6 +998,8 @@ class MultiMLP(nn.Module):
 
     def save_best_model_and_append_to_paths(self, best_model_idx):
         best_model: ANN = self.train_nets[best_model_idx]
+        outputs = best_model.outputs
+        best_model.outputs = None
         frozen_id = str(self.training_exp) + '_' + str(self.detected_task_id) + '_' + str(best_model.id)
         model_save_name = str(self.detected_task_id) + '_' + str(best_model.id) + '_' + best_model.model_name
 
@@ -1004,6 +1009,7 @@ class MultiMLP(nn.Module):
         best_model.frozen_id = frozen_id
         save_model(best_model, abstract_model_file_name, nn_model_file_name, preserve_net=True)
         best_model.frozen_id = None
+        best_model.outputs = outputs
 
         self.frozen_net_module_paths.append({'abstract_model_file_name': abstract_model_file_name,
                                      'nn_model_file_name': nn_model_file_name})
@@ -1323,7 +1329,8 @@ class MultiMLP(nn.Module):
                             add_best_training_nn_votes=True if self.auto_detect_tasks and (
                                         len(self.frozen_nets) == 0 or best_matched_frozen_nn_idx == len(
                                     self.frozen_nets)) else False,
-                            predictor=self.task_detector_type)
+                            predictor=self.task_detector_type,
+                            static_features=static_features)
                     else: # No weights from predictors
                         final_votes = \
                             self.frozen_nets[best_matched_frozen_nn_idx].net(x if self.frozen_nets[best_matched_frozen_nn_idx].network_type == NETWORK_TYPE_CNN else x_flatten)
@@ -1338,7 +1345,8 @@ class MultiMLP(nn.Module):
                     x, x_flatten, r,
                     weights_for_each_network=None,
                     add_best_training_nn_votes=False,
-                    predictor=None)
+                    predictor=None,
+                    static_features=static_features)
 
             correct_class_predicted = torch.eq(torch.argmax(final_votes, dim=1), y).sum().item()
             self.correct_class_predicted += correct_class_predicted
@@ -1480,8 +1488,7 @@ class MultiMLP(nn.Module):
         #     pass
 
         nn_list[nn_with_lowest_loss].chosen_after_train += r
-        return nn_list[nn_with_lowest_loss].net(
-            x if nn_list[nn_with_lowest_loss].network_type == NETWORK_TYPE_CNN else x_flatten)
+        return nn_list[nn_with_lowest_loss].outputs
 
     def add_to_train_pool(self, nn_with_lowest_loss):
         print("Adding item to training pool===")
