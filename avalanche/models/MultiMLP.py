@@ -623,7 +623,7 @@ class ANN:
                 xx = x
         else:
             xx = x_flatten
-        return self.net(xx).unsqueeze(0)
+        return self.net(xx.to(self.device)).unsqueeze(0)
 
     def reset(self):
         # configuration variables (which has the same name as init parameters) should be copied by the caller function
