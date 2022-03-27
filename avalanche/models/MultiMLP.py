@@ -1011,16 +1011,16 @@ class MultiMLP(nn.Module):
     def clear_frozen_pool(self):
         if len(self.frozen_nets) == 0:
             return
-        # try:
-        for i in range(len(self.frozen_net_module_paths)):
-            save_model(self.frozen_nets[i],
-                       self.frozen_net_module_paths[i]['abstract_model_file_name'],
-                       self.frozen_net_module_paths[i]['nn_model_file_name'])
-            self.frozen_nets[i] = None
-        # except:
-        #     print("Exception thrown. frozen_nets:\n{}", self.frozen_nets)
-        #     print("Exception thrown. frozen_net_module_paths:\n{}", self.frozen_net_module_paths)
-        #     print("Exception thrown. self:\n{}", self)
+        try:
+            for i in range(len(self.frozen_net_module_paths)):
+                save_model(self.frozen_nets[i],
+                           self.frozen_net_module_paths[i]['abstract_model_file_name'],
+                           self.frozen_net_module_paths[i]['nn_model_file_name'])
+                self.frozen_nets[i] = None
+        except:
+            print("Exception thrown. frozen_nets:\n{}", self.frozen_nets)
+            print("Exception thrown. frozen_net_module_paths:\n{}", self.frozen_net_module_paths)
+            print("Exception thrown. self:\n{}", self)
 
         self.frozen_nets = []
 
