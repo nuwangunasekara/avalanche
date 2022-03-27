@@ -982,7 +982,7 @@ class MultiMLP(nn.Module):
                 ex_f = static_features
             else:
                 ex_f = self.get_static_features(x, self.f_ex, self.f_ex_device)
-            p = self.nb_or_ht.predict_proba(ex_f.cpu())
+            p = self.nb_or_ht.predict_proba(ex_f.detach().cpu().numpy())
         return p
 
     def get_nn_index_with_lowest_loss(self, nn_list, use_estimated_loss=True):
