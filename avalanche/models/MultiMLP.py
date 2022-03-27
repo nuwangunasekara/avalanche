@@ -1011,12 +1011,17 @@ class MultiMLP(nn.Module):
     def clear_frozen_pool(self):
         if len(self.frozen_nets) == 0:
             return
-
+        # try:
         for i in range(len(self.frozen_net_module_paths)):
             save_model(self.frozen_nets[i],
                        self.frozen_net_module_paths[i]['abstract_model_file_name'],
                        self.frozen_net_module_paths[i]['nn_model_file_name'])
             self.frozen_nets[i] = None
+        # except:
+        #     print("Exception thrown. frozen_nets:\n{}", self.frozen_nets)
+        #     print("Exception thrown. frozen_net_module_paths:\n{}", self.frozen_net_module_paths)
+        #     print("Exception thrown. self:\n{}", self)
+
         self.frozen_nets = []
 
     def load_frozen_pool(self):
@@ -1449,9 +1454,7 @@ class MultiMLP(nn.Module):
                             task_detected = True
                     if task_detected:
                         self.samples_seen_for_train_after_dd = 0
-                        self.add_nn_with_lowest_loss_to_frozen_list()
-                        self.reset_one_class_detectors_and_loss_estimators_seen_task_ids()
-                        self.reset()
+                        self.add_to_frozen_pool()
             else: # POOL_TRAINING
                 if self.total_samples_seen_for_train > 1000:
                     nn_list[nn_with_lowest_loss].update_loss_estimator(copy_old=False)
