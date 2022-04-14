@@ -53,17 +53,17 @@ class AutoEncorder(torch.nn.Module):
 
 
 class InstanceBuffer:
-    def __init__(self, mem_size: int = 200):
+    def __init__(self, mem_size: int = 5):
         self.mem_size = mem_size
         self.ext_mem: Dict[Any, Tuple[List[Tensor], List[Tensor]]] = {}
         # count occurrences for each class
         self.counter: Dict[Any, Dict[Any, int]] = {}
 
-    def add_items(self, x, y, t):
+    def add_items(self, x, y, t_id):
         # for each pattern, add it to the memory or not
         for i in range(len(x)):
             pattern = x[i]
-            task_id = t
+            task_id = t_id
             target = y[i]
             target_value = target.item()
 
@@ -95,39 +95,58 @@ class InstanceBuffer:
                     for j in range(dataset_size):
                         if current_mem[1][j].item() == to_remove:
                             current_mem[0][j] = pattern
-                            current_mem[1][j] = target
+                            current_mem[1][j] = target.reshape(1)
                             break
                     current_counter[to_remove] -= 1
                 else:
                     # memory not full: add new pattern
                     current_mem[0].append(pattern)
-                    current_mem[1].append(target)
+                    current_mem[1].append(target.reshape(1))
 
                 # Indicate that we've changed the number of stored instances of
                 # this class.
                 current_counter[target_value] += 1
 
 
-    def get_union_buffer(self, task_id, x, y):
+    def get_union_buffer(self, x, y, task_id):
         xx = x.detach()
-        yy = y.detach()
+        yy = y.detach().cpu()
 
         x_size = len(x)
         if self.ext_mem.get(task_id) is not None:
-            patterns, targets = self.samples_per_each_task_at_train[task_id]
-            patterns = torch.tensor(patterns)
-            targets = torch.tensor(targets)
+            patterns, targets = self.ext_mem[task_id]
+            patterns = torch.cat(patterns).cpu()
+            targets = torch.cat(targets).cpu()
 
             buffer_size = len(patterns)
-            buffer_copy_size = min(x_size/2, buffer_size)
+            buffer_copy_size = min(x_size//2, buffer_size)
 
             indices_to_copy = sample(range(buffer_size), buffer_copy_size)
-            indices_to_copy = torch.tensor(indices_to_copy)
+            indices_to_copy = torch.tensor(indices_to_copy).to(torch.long).cpu()
 
-            replace_indices = sample(range(len(buffer_copy_size)), x_size-buffer_copy_size)
-            replace_indices = torch.tensor(replace_indices)
-
-            xx.index_copy_(0, replace_indices, torch.index_select(patterns, 0, indices_to_copy))
-            yy.index_copy_(0, replace_indices, torch.index_select(targets, 0, indices_to_copy))
+            replace_indices = sample(range(x_size), buffer_copy_size)
+            replace_indices = torch.tensor(replace_indices).to(torch.long).cpu()
+            try:
+                xx.index_copy_(0, replace_indices, torch.index_select(patterns, 0, indices_to_copy))
+                yy.index_copy_(0, replace_indices, torch.index_select(targets, 0, indices_to_copy))
+            except:
+                print('hi')
 
         return xx, yy
+
+
+
+
+instance_buffer = InstanceBuffer()
+
+for i in range (10):
+    for j in range (3):
+        x = torch.ones(2, 3)
+        y = torch.ones(2)
+        c = i + (j/10)
+        instance_buffer.add_items(c * x, i * y, i)
+
+x = torch.ones(10, 3)
+y = torch.ones(10)
+
+x1, y1 = instance_buffer.get_union_buffer(2*x, 2*y, 1)

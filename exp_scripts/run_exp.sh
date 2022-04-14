@@ -42,10 +42,6 @@ tp_use_weights_from_task_detectors='use_w'
 tp_auto_detect_tasks='no_autotdk'
 #tp_auto_detect_tasks='autotdk'
 
-# DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END, WITH_ACCUMULATED_INSTANCES, WITH_ACCUMULATED_LEARNED_FEATURES, WITH_ACCUMULATED_STATIC_FEATURES
-train_task_predictor_at_the_end_default='DO_NOT_NOT_TRAIN_TASK_PREDICTOR_AT_THE_END'
-
-# exp/scripts/train_pool.py sets internal variable use_static_f_ex to True if train_task_predictor_at_the_end_default='WITH_ACCUMULATED_STATIC_FEATURES'
 # But it is best to set it externally via --use_static_f_ex
 #tp_use_static_f_ex='no-use_st_fx'
 tp_use_static_f_ex='use_st_fx'
@@ -141,18 +137,15 @@ do
         TrainPool)
           tp_predict_method=${tp_predict_methods[$k]}
           tp_p_method="${tp_predict_method}"
-          tp_train_task_p_at_end_type="${train_task_predictor_at_the_end_default}"
           case ${tp_predict_method} in
             ONE_CLASS)
               ;;
             ONE_CLASS_end)
-#              tp_train_task_p_at_end_type="${train_task_predictor_at_the_end}"
               tp_p_method='ONE_CLASS'
               ;;
             NAIVE_BAYES)
               ;;
             NAIVE_BAYES_end)
-#              tp_train_task_p_at_end_type="${train_task_predictor_at_the_end}"
               tp_p_method='NAIVE_BAYES'
               ;;
             *)
@@ -225,8 +218,8 @@ do
             tp_prediction_pool_cmd='--prediction_pool FROZEN'
           fi
 
-          command_args="${command_args} --module MultiMLP --pool_type ${tp_pool_type} --train_pool_max ${tp_max} --skip_back_prop_threshold ${tp_skip_back_prop_threshold} --task_detector_type ${tp_p_method} ${tp_reset_tp_cmd} ${tp_use_one_class_probas_cmd} ${tp_use_weights_from_task_detectors_cmd} ${tp_auto_detect_tasks_cmd} --train_task_predictor_at_the_end ${tp_train_task_p_at_end_type} ${tp_use_static_f_ex_cmd} ${tp_train_nn_using_ex_static_f_cmd} ${tp_train_only_the_best_nn_cmd} ${tp_use_1_channel_pretrained_for_1_channel_cmd} ${tp_use_quantized_cmd} ${tp_prediction_pool_cmd} --adwin_delta_in_log10 ${tp_adwin_delta_in_log10} ${tp_random_train_frozen_if_best_cmd}"
-          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_max}_${tp_predict_method}_${tp_reset_tp}_${tp_use_one_class_probas}_${tp_use_weights_from_task_detectors}_${tp_auto_detect_tasks}_${tp_train_task_p_at_end_type}_${tp_use_static_f_ex}_${tp_train_nn_using_ex_static_f}_${tp_train_only_the_best_nn}_${tp_use_1_channel_pretrained_for_1_channel}_${tp_use_quantized}_bp${tp_skip_back_prop_threshold}_${tp_prediction_pool}_A${tp_adwin_delta_in_log10}_${tp_random_train_frozen_if_best}"
+          command_args="${command_args} --module MultiMLP --pool_type ${tp_pool_type} --train_pool_max ${tp_max} --skip_back_prop_threshold ${tp_skip_back_prop_threshold} --task_detector_type ${tp_p_method} ${tp_reset_tp_cmd} ${tp_use_one_class_probas_cmd} ${tp_use_weights_from_task_detectors_cmd} ${tp_auto_detect_tasks_cmd} ${tp_use_static_f_ex_cmd} ${tp_train_nn_using_ex_static_f_cmd} ${tp_train_only_the_best_nn_cmd} ${tp_use_1_channel_pretrained_for_1_channel_cmd} ${tp_use_quantized_cmd} ${tp_prediction_pool_cmd} --adwin_delta_in_log10 ${tp_adwin_delta_in_log10} ${tp_random_train_frozen_if_best_cmd}"
+          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_max}_${tp_predict_method}_${tp_reset_tp}_${tp_use_one_class_probas}_${tp_use_weights_from_task_detectors}_${tp_auto_detect_tasks}_${tp_use_static_f_ex}_${tp_train_nn_using_ex_static_f}_${tp_train_only_the_best_nn}_${tp_use_1_channel_pretrained_for_1_channel}_${tp_use_quantized}_bp${tp_skip_back_prop_threshold}_${tp_prediction_pool}_A${tp_adwin_delta_in_log10}_${tp_random_train_frozen_if_best}"
           ;;
         *)
           command_args=""

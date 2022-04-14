@@ -115,15 +115,15 @@ def read_file_plot_roc_cur_auc(file_name, ax, title_prefix, numpy_file=False):
         #     linewidth=4,
         # )
         # print ROC for each one class task detector
-        # colors = cycle(["aqua", "darkorange", "cornflowerblue", "red", "green", "blue", "pink", "yellow", "grey", "darkgreen", "brown"])
-        # for i, color in zip(range(n_classes), colors):
-        #     ax.plot(
-        #         fpr[i],
-        #         tpr[i],
-        #         color=color,
-        #         lw=lw,
-        #         label="ROC curve of task {0} (area = {1:0.2f})".format(i, roc_auc[i]),
-        #     )
+        colors = cycle(["aqua", "darkorange", "cornflowerblue", "red", "green", "blue", "pink", "yellow", "grey", "darkgreen", "brown"])
+        for i, color in zip(range(n_classes), colors):
+            ax.plot(
+                fpr[i],
+                tpr[i],
+                color=color,
+                lw=lw,
+                label="ROC curve of task {0} (area = {1:0.2f})".format(i, roc_auc[i]),
+            )
 
         ax.plot([0, 1], [0, 1], "k--", lw=lw)
         ax.set_xlim([0.0, 1.0])
