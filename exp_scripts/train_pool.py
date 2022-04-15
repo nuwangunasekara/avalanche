@@ -178,18 +178,10 @@ def main(args):
             shutil.rmtree(model_dump_dir)
         os.mkdir(model_dump_dir)
 
-
-        prediction_pool = None
-        if args.prediction_pool == 'FROZEN':
-            prediction_pool = POOL_FROZEN
-        elif args.prediction_pool == 'TRAINING':
-            prediction_pool = POOL_TRAINING
-
         model = MultiMLP(
             num_classes=scenario.n_classes,
             use_threads=False,
             loss_estimator_delta=pow(10, args.adwin_delta_in_log10),
-            train_pool_max=args.train_pool_max,
             predict_method=predict_method,
             nn_pool_type=args.pool_type,
             back_prop_skip_loss_threshold=args.skip_back_prop_threshold,
@@ -203,11 +195,9 @@ def main(args):
             n_experiences=scenario.n_experiences,
             use_static_f_ex=args.use_static_f_ex,
             train_nn_using_ex_static_f=args.train_nn_using_ex_static_f,
-            train_only_the_best_nn=args.train_only_the_best_nn,
             use_1_channel_pretrained_for_1_channel=args.use_1_channel_pretrained_for_1_channel,
             use_quantized=args.use_quantized,
-            prediction_pool=prediction_pool,
-            random_train_frozen_if_best=args.random_train_frozen_if_best)
+            )
         optimizer = None
         criterion = None
 
@@ -328,8 +318,6 @@ if __name__ == '__main__':
                         help='Optimizer type')
     parser.add_argument('--base_dir', type=str, default='/Users/ng98/Desktop/avalanche_test',
                         help='Base Directory')
-    parser.add_argument('--train_pool_max', type=int, default=6,
-                        help='Maximum size of the training pool.')
     parser.add_argument('--pool_type', type=str, default='6CNN',
                         help='Pool type for MultiMLP.')
     parser.add_argument('--task_detector_type', type=str, default='ONE_CLASS',
@@ -385,13 +373,6 @@ if __name__ == '__main__':
                         action='store_false')
     parser.set_defaults(train_nn_using_ex_static_f=False)
 
-    # train_only_the_best_nn
-    parser.add_argument('--train_only_the_best_nn', dest='train_only_the_best_nn',
-                        action='store_true')
-    parser.add_argument('--no-train_only_the_best_nn', dest='train_only_the_best_nn',
-                        action='store_false')
-    parser.set_defaults(train_only_the_best_nn=False)
-
     # use_1_channel_pretrained_for_1_channel
     parser.add_argument('--use_1_channel_pretrained_for_1_channel', dest='use_1_channel_pretrained_for_1_channel',
                         action='store_true')
@@ -405,18 +386,6 @@ if __name__ == '__main__':
     parser.add_argument('--no-use_quantized', dest='use_quantized',
                         action='store_false')
     parser.set_defaults(use_quantized=True)
-
-    # random_train_frozen_if_best
-    parser.add_argument('--random_train_frozen_if_best', dest='random_train_frozen_if_best',
-                        action='store_true')
-    parser.add_argument('--no-random_train_frozen_if_best', dest='random_train_frozen_if_best',
-                        action='store_false')
-    parser.set_defaults(random_train_frozen_if_best=False)
-
-    parser.add_argument('--prediction_pool', type=str, default='FROZEN',
-                        choices=['FROZEN', 'TRAINING'],
-                        help='Pool to use for prediction: '
-                             'FROZEN, or TRAINING')
 
     parser.add_argument('--adwin_delta_in_log10', type=float, default=-3.0,
                         help='adwin_delta_in_log10')

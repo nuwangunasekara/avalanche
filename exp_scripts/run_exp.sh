@@ -20,14 +20,11 @@ train_mb_size='16'
 eval_mb_size='1'
 
 tp_pool_type='6CNN'
-tp_max='15'
+
 tp_predict_methods_array=('ONE_CLASS' 'ONE_CLASS_end' 'MAJORITY_VOTE' 'RANDOM' 'NAIVE_BAYES' 'NAIVE_BAYES_end' 'TASK_ID_KNOWN' 'HT')
 tp_predict_methods_array=('MAJORITY_VOTE' 'RANDOM' 'TASK_ID_KNOWN')
 tp_predict_methods_array=('NAIVE_BAYES' 'ONE_CLASS' 'HT')
 tp_predict_methods_array=('NAIVE_BAYES')
-
-#tp_prediction_pool='TR'
-tp_prediction_pool='FR'
 
 #tp_reset_tp='rst'
 tp_reset_tp='no_rst'
@@ -49,17 +46,11 @@ tp_use_static_f_ex='use_st_fx'
 #tp_train_nn_using_ex_static_f='no-t_nn_with_ex_st_f'
 tp_train_nn_using_ex_static_f='t_nn_with_ex_st_f'
 
-tp_train_only_the_best_nn='no-t_only_the_best'
-#tp_train_only_the_best_nn='t_only_the_best'
-
 tp_use_1_channel_pretrained_for_1_channel='no-use_1c_pt'
 #tp_use_1_channel_pretrained_for_1_channel='use_1c_pt'
 
 tp_use_quantized='no-use_Q'
 #tp_use_quantized='use_Q'
-
-tp_random_train_frozen_if_best='no-RfB'
-#tp_random_train_frozen_if_best='RfB'
 
 tp_skip_back_prop_threshold='0.0'
 #tp_skip_back_prop_threshold='0.3'
@@ -188,12 +179,6 @@ do
             tp_train_nn_using_ex_static_f_cmd='--no-train_nn_using_ex_static_f'
           fi
 
-          if [ "${tp_train_only_the_best_nn}" == "t_only_the_best" ]; then
-            tp_train_only_the_best_nn_cmd='--train_only_the_best_nn'
-          else
-            tp_train_only_the_best_nn_cmd='--no-train_only_the_best_nn'
-          fi
-
           if [ "${tp_use_1_channel_pretrained_for_1_channel}" == "use_1c_pt" ]; then
             tp_use_1_channel_pretrained_for_1_channel_cmd='--use_1_channel_pretrained_for_1_channel'
           else
@@ -206,20 +191,8 @@ do
             tp_use_quantized_cmd='--no-use_quantized'
           fi
 
-          if [ "${tp_random_train_frozen_if_best}" == "RfB" ]; then
-            tp_random_train_frozen_if_best_cmd='--random_train_frozen_if_best'
-          else
-            tp_random_train_frozen_if_best_cmd='--no-random_train_frozen_if_best'
-          fi
-
-          if [ "${tp_prediction_pool}" == "TR" ]; then
-            tp_prediction_pool_cmd='--prediction_pool TRAINING'
-          else
-            tp_prediction_pool_cmd='--prediction_pool FROZEN'
-          fi
-
-          command_args="${command_args} --module MultiMLP --pool_type ${tp_pool_type} --train_pool_max ${tp_max} --skip_back_prop_threshold ${tp_skip_back_prop_threshold} --task_detector_type ${tp_p_method} ${tp_reset_tp_cmd} ${tp_use_one_class_probas_cmd} ${tp_use_weights_from_task_detectors_cmd} ${tp_auto_detect_tasks_cmd} ${tp_use_static_f_ex_cmd} ${tp_train_nn_using_ex_static_f_cmd} ${tp_train_only_the_best_nn_cmd} ${tp_use_1_channel_pretrained_for_1_channel_cmd} ${tp_use_quantized_cmd} ${tp_prediction_pool_cmd} --adwin_delta_in_log10 ${tp_adwin_delta_in_log10} ${tp_random_train_frozen_if_best_cmd}"
-          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_max}_${tp_predict_method}_${tp_reset_tp}_${tp_use_one_class_probas}_${tp_use_weights_from_task_detectors}_${tp_auto_detect_tasks}_${tp_use_static_f_ex}_${tp_train_nn_using_ex_static_f}_${tp_train_only_the_best_nn}_${tp_use_1_channel_pretrained_for_1_channel}_${tp_use_quantized}_bp${tp_skip_back_prop_threshold}_${tp_prediction_pool}_A${tp_adwin_delta_in_log10}_${tp_random_train_frozen_if_best}"
+          command_args="${command_args} --module MultiMLP --pool_type ${tp_pool_type} --skip_back_prop_threshold ${tp_skip_back_prop_threshold} --task_detector_type ${tp_p_method} ${tp_reset_tp_cmd} ${tp_use_one_class_probas_cmd} ${tp_use_weights_from_task_detectors_cmd} ${tp_auto_detect_tasks_cmd} ${tp_use_static_f_ex_cmd} ${tp_train_nn_using_ex_static_f_cmd} ${tp_use_1_channel_pretrained_for_1_channel_cmd} ${tp_use_quantized_cmd} --adwin_delta_in_log10 ${tp_adwin_delta_in_log10}"
+          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_predict_method}_${tp_reset_tp}_${tp_use_one_class_probas}_${tp_use_weights_from_task_detectors}_${tp_auto_detect_tasks}_${tp_use_static_f_ex}_${tp_train_nn_using_ex_static_f}_${tp_use_1_channel_pretrained_for_1_channel}_${tp_use_quantized}_bp${tp_skip_back_prop_threshold}_A${tp_adwin_delta_in_log10}"
           ;;
         *)
           command_args=""
