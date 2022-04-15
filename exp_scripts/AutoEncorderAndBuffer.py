@@ -115,8 +115,9 @@ class InstanceBuffer:
         x_size = len(x)
         if self.ext_mem.get(task_id) is not None:
             patterns, targets = self.ext_mem[task_id]
-            patterns = torch.cat(patterns).cpu()
-            targets = torch.cat(targets).cpu()
+            patterns = torch.stack(patterns).cpu()
+            targets = torch.stack(targets).cpu()
+            targets = targets.view(targets.shape[0],)
 
             buffer_size = len(patterns)
             buffer_copy_size = min(x_size//2, buffer_size)
@@ -127,26 +128,26 @@ class InstanceBuffer:
             replace_indices = sample(range(x_size), buffer_copy_size)
             replace_indices = torch.tensor(replace_indices).to(torch.long).cpu()
             try:
-                xx.index_copy_(0, replace_indices, torch.index_select(patterns, 0, indices_to_copy))
-                yy.index_copy_(0, replace_indices, torch.index_select(targets, 0, indices_to_copy))
+                xx = xx.index_copy_(0, replace_indices, torch.index_select(patterns, 0, indices_to_copy))
+                yy = yy.index_copy_(0, replace_indices, torch.index_select(targets, 0, indices_to_copy))
             except:
                 print('hi')
 
         return xx, yy
 
 
-
-
-instance_buffer = InstanceBuffer()
-
+instance_buffer = InstanceBuffer(mem_size=5)
+shape = (2, 3, 32, 32)
 for i in range (10):
     for j in range (3):
-        x = torch.ones(2, 3)
-        y = torch.ones(2)
+        x = torch.ones(shape)
+        y = torch.ones(shape[0])
         c = i + (j/10)
         instance_buffer.add_items(c * x, i * y, i)
 
-x = torch.ones(10, 3)
-y = torch.ones(10)
+shape2 = (4, 3, 32, 32)
+x = torch.ones(shape2)
+y = torch.ones(shape2[0])
 
 x1, y1 = instance_buffer.get_union_buffer(2*x, 2*y, 1)
+print ('Hi')
