@@ -28,7 +28,7 @@ class TrainPoolPlugin(StrategyPlugin):
         if strategy.model.auto_detect_tasks:
             pass
         else:
-            strategy.model.add_to_pool()
+            strategy.model.add_to_frozen_pool()
         strategy.model.print_stats(dumped_at='after_training')
         strategy.model.training_exp += 1
 

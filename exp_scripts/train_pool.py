@@ -10,7 +10,6 @@ from avalanche.models import *
 from avalanche.models.MultiMLP import SimpleCNN, CNN4, count_parameters
 from avalanche.models.MultiMLP import PREDICT_METHOD_ONE_CLASS, PREDICT_METHOD_MAJORITY_VOTE, PREDICT_METHOD_RANDOM, \
     PREDICT_METHOD_TASK_ID_KNOWN, PREDICT_METHOD_NW_CONFIDENCE, PREDICT_METHOD_NAIVE_BAYES, PREDICT_METHOD_HT
-from avalanche.models.MultiMLP import POOL_FROZEN, POOL_TRAINING
 from avalanche.evaluation.metrics import *
 from avalanche.logging import InteractiveLogger, TextLogger, TensorboardLogger, CSVLogger
 from avalanche.training.plugins import EvaluationPlugin
@@ -197,6 +196,8 @@ def main(args):
             train_nn_using_ex_static_f=args.train_nn_using_ex_static_f,
             use_1_channel_pretrained_for_1_channel=args.use_1_channel_pretrained_for_1_channel,
             use_quantized=args.use_quantized,
+            max_frozen_pool_size=args.max_frozen_pool_size,
+            instance_buffer_size_per_frozen_nw=args.mem_buff_size
             )
         optimizer = None
         criterion = None
@@ -389,6 +390,10 @@ if __name__ == '__main__':
 
     parser.add_argument('--adwin_delta_in_log10', type=float, default=-3.0,
                         help='adwin_delta_in_log10')
+
+    parser.add_argument('--max_frozen_pool_size', type=int, default=-1,
+                        help='max_frozen_pool_size. Infinite if -1.')
+
 
     args = parser.parse_args()
 

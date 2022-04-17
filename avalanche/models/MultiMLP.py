@@ -3,6 +3,18 @@ import random
 import sys
 import threading
 from collections import OrderedDict
+from collections import defaultdict
+from typing import (
+    # TYPE_CHECKING,
+    Any,
+    # ClassVar,
+    Dict,
+    List,
+    # Optional,
+    Tuple,
+    # Type,
+)
+from random import sample
 
 import numpy as np
 from copy import deepcopy
@@ -19,6 +31,7 @@ from skmultiflow.bayes import NaiveBayes
 from skmultiflow.trees import HoeffdingTreeClassifier
 
 import torch
+from torch import Tensor
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import transforms
@@ -62,8 +75,89 @@ PREDICT_METHOD_HT = 6
 
 NO_OF_CHANNELS = 3
 
-POOL_FROZEN = 0
-POOL_TRAINING = 1
+class InstanceBuffer:
+    def __init__(self, mem_size: int = 5):
+        self.mem_size = mem_size
+        self.ext_mem: Dict[Any, Tuple[List[Tensor], List[Tensor]]] = {}
+        # count occurrences for each class
+        self.counter: Dict[Any, Dict[Any, int]] = {}
+
+    def add_items(self, x, y, t_id):
+        # for each pattern, add it to the memory or not
+        for i in range(len(x)):
+            pattern = x[i]
+            task_id = t_id
+            target = y[i]
+            target_value = target.item()
+
+            if len(pattern.size()) == 1:
+                pattern = pattern.unsqueeze(0)
+
+            current_counter = self.counter.setdefault(task_id, defaultdict(int))
+            current_mem = self.ext_mem.setdefault(task_id, ([], []))
+
+            if current_counter == {}:
+                # any positive (>0) number is ok
+                patterns_per_class = 1
+            else:
+                patterns_per_class = int(
+                    self.mem_size / len(current_counter.keys())
+                )
+
+            if (
+                target_value not in current_counter
+                or current_counter[target_value] < patterns_per_class
+            ):
+                # add new pattern into memory
+                if sum(current_counter.values()) >= self.mem_size:
+                    # full memory: replace item from most represented class
+                    # with current pattern
+                    to_remove = max(current_counter, key=current_counter.get)
+
+                    dataset_size = len(current_mem[0])
+                    for j in range(dataset_size):
+                        if current_mem[1][j].item() == to_remove:
+                            current_mem[0][j] = pattern
+                            current_mem[1][j] = target.reshape(1)
+                            break
+                    current_counter[to_remove] -= 1
+                else:
+                    # memory not full: add new pattern
+                    current_mem[0].append(pattern)
+                    current_mem[1].append(target.reshape(1))
+
+                # Indicate that we've changed the number of stored instances of
+                # this class.
+                current_counter[target_value] += 1
+
+
+    def get_union_buffer(self, x, y, task_id):
+        xx = x.detach().cpu()
+        yy = y.detach().cpu()
+
+        x_size = len(x)
+        if self.ext_mem.get(task_id) is not None:
+            patterns, targets = self.ext_mem[task_id]
+            patterns = torch.stack(patterns).cpu()
+            targets = torch.stack(targets).cpu()
+            targets = targets.view(targets.shape[0],)
+
+            buffer_size = len(patterns)
+            buffer_copy_size = min(x_size//2, buffer_size)
+
+            indices_to_copy = sample(range(buffer_size), buffer_copy_size)
+            indices_to_copy = torch.tensor(indices_to_copy).to(torch.long).cpu()
+
+            replace_indices = sample(range(x_size), buffer_copy_size)
+            replace_indices = torch.tensor(replace_indices).to(torch.long).cpu()
+            try:
+                xx = xx.index_copy_(0, replace_indices, torch.index_select(patterns, 0, indices_to_copy))
+                yy = yy.index_copy_(0, replace_indices, torch.index_select(targets, 0, indices_to_copy))
+            except Exception as e:
+                print('Replace exception: {}'.format(e))
+
+        return xx, yy
+
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -505,7 +599,7 @@ class ANN:
                                    self.scaler)
         self.one_class_detector_fit_called = True
 
-    def train_net(self, x, y, c, r, true_task_id, use_instances_for_task_detector_training,
+    def train_net(self, x, y, c, r, true_task_id,
                   use_one_class_probas, static_features=None):
         if self.train_nn_using_ex_static_f and static_features is not None:
             # xx = repeat_channel_1(static_features.view(static_features.shape[0], 64, -1)[:, None, :, :])
@@ -531,9 +625,8 @@ class ANN:
         # forward propagation
         outputs = self.net(xx)  # trains nn
 
-        if use_instances_for_task_detector_training:
-            if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
-                self.train_one_class_classifier(static_features.cpu(), use_one_class_probas)
+        if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
+            self.train_one_class_classifier(static_features.cpu(), use_one_class_probas)
 
         # backward propagation
         # print(self.net.linear[0].weight.data)
@@ -600,10 +693,9 @@ def flatten_dimensions(mb_x):
 
 
 def net_train(net: ANN, x: np.ndarray, r, c, y: np.ndarray, true_task_id,
-              use_instances_for_task_detector_training,
               use_one_class_probas,
               static_features):
-    net.train_net(x, y, c, r, true_task_id,use_instances_for_task_detector_training,
+    net.train_net(x, y, c, r, true_task_id,
                   use_one_class_probas,
                   static_features=static_features)
 
@@ -670,6 +762,8 @@ class MultiMLP(nn.Module):
                  train_nn_using_ex_static_f=True,
                  use_1_channel_pretrained_for_1_channel=False,
                  use_quantized=False,
+                 max_frozen_pool_size = -1,
+                 instance_buffer_size_per_frozen_nw = 200
                  ):
         super().__init__()
 
@@ -698,6 +792,8 @@ class MultiMLP(nn.Module):
         self.train_nn_using_ex_static_f = train_nn_using_ex_static_f
         self.use_1_channel_pretrained_for_1_channel = use_1_channel_pretrained_for_1_channel
         self.use_quantized = use_quantized
+        self.max_frozen_pool_size = max_frozen_pool_size
+        self.instance_buffer_size_per_frozen_nw = instance_buffer_size_per_frozen_nw
 
         # status variables
         self.train_nets = []  # type: List[ANN]
@@ -717,12 +813,13 @@ class MultiMLP(nn.Module):
         self.training_exp = 0
         self.available_nn_id = 0
         self.detected_task_id = 0
-        self.accumulated_x_or_features = [None]
         self.instances_per_task_at_last = {}
         self.f_ex = None
         self.f_ex_device = None
         self.nb_or_ht = NaiveBayes() if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES else HoeffdingTreeClassifier() if self.task_detector_type == PREDICT_METHOD_HT else None
         self.nb_preds = None
+        self.buffer = InstanceBuffer(mem_size=self.instance_buffer_size_per_frozen_nw)
+
 
         self.init_values()
 
@@ -940,7 +1037,7 @@ class MultiMLP(nn.Module):
 
     def load_frozen_pool(self):
         if len(self.frozen_nets) != 0:
-            print('Frozen pool is not empty')
+            # print('Frozen pool is not empty')
             return
 
         for i in range(len(self.frozen_net_module_paths)):
@@ -985,8 +1082,6 @@ class MultiMLP(nn.Module):
             self.train_nets[idx] = None  # clear chosen net's memory
 
         self.detected_task_id += 1
-        self.accumulated_x_or_features = None
-        self.accumulated_x_or_features = [None]
 
     def save_nb_predictions(self):
         if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_HT:
@@ -1070,16 +1165,15 @@ class MultiMLP(nn.Module):
         c = kwargs["c"]
         y = kwargs["y"]
         true_task_id = kwargs["true_task_id"]
-        use_instances_for_task_detector_training = kwargs["use_instances_for_task_detector_training"]
         static_features = kwargs["static_features"]
         t = []
         for i in range(len(nn_list)):
             if self.use_threads:
                 t.append(threading.Thread(target=net_train, args=(
-                nn_list[i], xx, r, c, y, true_task_id, use_instances_for_task_detector_training,
+                nn_list[i], xx, r, c, y, true_task_id,
                 self.use_one_class_probas, static_features,)))
             else:
-                nn_list[i].train_net(xx, y, c, r, true_task_id, use_instances_for_task_detector_training,
+                nn_list[i].train_net(xx, y, c, r, true_task_id,
                                              self.use_one_class_probas,
                                              static_features=static_features)
         if self.use_threads:
@@ -1142,9 +1236,6 @@ class MultiMLP(nn.Module):
                     use_single_channel_fx = True if x.shape[1] == 1 and self.use_1_channel_pretrained_for_1_channel else False
                 )
             static_features = self.get_static_features(x, self.f_ex, fx_device=self.f_ex_device)
-            # if not self.call_predict:
-            #     self.instance_buffer.add_items(static_features, y, self.detected_task_id)
-            #     static_features, y = self.instance_buffer.get_union_buffer(static_features, y, self.detected_task_id)
 
         if self.call_predict:
             self.samples_seen_for_test += r
@@ -1161,8 +1252,8 @@ class MultiMLP(nn.Module):
                         or self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES \
                         or self.task_detector_type == PREDICT_METHOD_HT:
                     weights_for_frozen_nns, best_matched_frozen_nn_idx = \
-                        self.get_best_matched_nn_index_and_weights_via_predictor(self.task_detector_type,                                                                                self.frozen_nets,
-                                                                                 static_features)
+                        self.get_best_matched_nn_index_and_weights_via_predictor(
+                            self.task_detector_type, self.frozen_nets, static_features)
                     if self.training_exp == self.n_experiences:
                         if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
                             self.check_accuracy_of_one_class_classifiers(x)
@@ -1240,32 +1331,42 @@ class MultiMLP(nn.Module):
             else:
                 self.samples_per_each_task_at_train[true_task_id] += r
 
-        use_instances_for_task_detector_training = True if random.randint(0, 0) == 0 else False
-
-        x_or_features = None
-        if use_instances_for_task_detector_training:
-            if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or \
-                    self.task_detector_type == PREDICT_METHOD_HT or \
-                    self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
-                if self.use_static_f_ex:
-                    x_or_features = static_features
-                    if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_HT:
-                        self.nb_train(x_or_features, self.detected_task_id)
-
-        xx = x
         c = None
-
-        self.clear_frozen_pool()
         nn_list = []
-        nn_list = self.train_nets
+
+        if self.max_frozen_pool_size > 0 and  len(self.frozen_net_module_paths) >= self.max_frozen_pool_size:
+            self.load_frozen_pool()
+            weights_for_frozen_nns, best_matched_frozen_nn_idx = \
+                self.get_best_matched_nn_index_and_weights_via_predictor(
+                    self.task_detector_type, self.frozen_nets, static_features)
+            nn_list.append(self.frozen_nets[best_matched_frozen_nn_idx])
+            nw_id = best_matched_frozen_nn_idx
+            xx, yy = self.buffer.get_union_buffer(x, y, nw_id)
+            if self.use_static_f_ex:
+                static_features = self.get_static_features(xx, self.f_ex, fx_device=self.f_ex_device)
+        else:
+            self.clear_frozen_pool()
+            nn_list = self.train_nets
+            nw_id = self.detected_task_id
+            self.buffer.add_items(x, y, nw_id)
+            yy = y
+            xx = x
+
+        if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or \
+                self.task_detector_type == PREDICT_METHOD_HT or \
+                self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
+            if self.use_static_f_ex:
+                if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_HT:
+                    self.nb_train(static_features, nw_id)
+
+
 
         self.forward_pass(nn_list,
                           xx=xx,
                           r=r,
                           c=c,
-                          y=y,
+                          y=yy,
                           true_task_id=true_task_id,
-                          use_instances_for_task_detector_training=use_instances_for_task_detector_training,
                           static_features=static_features)
 
         nn_with_lowest_loss = self.get_nn_index_with_lowest_loss(nn_list,
@@ -1315,12 +1416,10 @@ class MultiMLP(nn.Module):
         self.detected_task_id += 1
 
     def add_to_frozen_pool(self):
-        self.add_nn_with_lowest_loss_to_frozen_list()
-        self.reset_one_class_detectors_and_loss_estimators_seen_task_ids()
-        self.reset()
-
-    def add_to_pool(self):
-        self.add_to_frozen_pool()
+        if self.max_frozen_pool_size == -1 or (self.max_frozen_pool_size > 0 and len(self.frozen_net_module_paths) < self.max_frozen_pool_size ):
+            self.add_nn_with_lowest_loss_to_frozen_list()
+            self.reset_one_class_detectors_and_loss_estimators_seen_task_ids()
+            self.reset()
 
     def print_stats_hader(self):
         print('Training pool size {}'.format(len(self.train_nets)))
