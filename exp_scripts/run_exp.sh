@@ -43,8 +43,8 @@ tp_auto_detect_tasks='no_autotdk'
 #tp_use_static_f_ex='no-use_st_fx'
 tp_use_static_f_ex='use_st_fx'
 
-#tp_train_nn_using_ex_static_f='no-t_nn_with_ex_st_f'
-tp_train_nn_using_ex_static_f='t_nn_with_ex_st_f'
+tp_train_nn_using_ex_static_f='no-t_nn_with_ex_st_f'
+#tp_train_nn_using_ex_static_f='t_nn_with_ex_st_f'
 
 tp_use_1_channel_pretrained_for_1_channel='no-use_1c_pt'
 #tp_use_1_channel_pretrained_for_1_channel='use_1c_pt'

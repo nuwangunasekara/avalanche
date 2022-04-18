@@ -305,12 +305,11 @@ repeat_channel_1 = transforms.Compose([
 
 class SimpleCNN(nn.Module):
 
-    def __init__(self, num_classes=10, num_channels=NO_OF_CHANNELS):
+    def __init__(self, num_classes=10, num_channels=0):
         super(SimpleCNN, self).__init__()
 
         self.features = nn.Sequential(
-            nn.Conv1d(num_channels + 1, 32, kernel_size=3, stride=1, padding=1) if num_channels == 0 else nn.Conv2d(
-                num_channels, 32, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(num_channels, 32, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
             nn.Conv2d(32, 32, kernel_size=3, padding=0),
             nn.ReLU(inplace=True),
@@ -347,8 +346,7 @@ class CNN4(nn.Module):
 
         super().__init__()
         self.features = nn.Sequential(
-            nn.Conv1d(num_channels + 1, 32, kernel_size=3, stride=1, padding=1) if num_channels == 0 else nn.Conv2d(
-                num_channels, 32, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(num_channels, 32, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
             nn.Conv2d(32, 32, kernel_size=3, padding=0),
             nn.ReLU(inplace=True),
@@ -564,10 +562,7 @@ class ANN:
 
     def initialize_network(self):
         if self.network_type == NETWORK_TYPE_CNN:
-            if len(self.x_shape) == 2:
-                number_of_channels = 0
-            else:
-                number_of_channels = self.x_shape[1]
+            number_of_channels = self.x_shape[1]
             if self.cnn_type == 'SimpleCNN':
                 self.net = SimpleCNN(num_classes=self.num_classes, num_channels=number_of_channels)
             elif self.cnn_type == 'CNN4':
