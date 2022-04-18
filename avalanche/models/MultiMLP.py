@@ -567,6 +567,9 @@ class ANN:
                 self.net = SimpleCNN(num_classes=self.num_classes, num_channels=number_of_channels)
             elif self.cnn_type == 'CNN4':
                 self.net = CNN4(num_classes=self.num_classes, num_channels=number_of_channels)
+            else:
+                print('Unsupported cnn type {}'.format(self.cnn_type))
+                exit(0)
             # print_summary(self.net, self.x_shape)
             print('Number of parameters: {}'.format(count_parameters(self.net)))
         else:
