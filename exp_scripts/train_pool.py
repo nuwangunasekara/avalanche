@@ -312,8 +312,10 @@ if __name__ == '__main__':
                         help='Specify GPU id to use. Use CPU if -1.')
     parser.add_argument('--dataset', type=str, default='RotatedMNIST',
                         help='dataset to train and test')
-    parser.add_argument('--module', type=str, default='MultiMLP',
-                        help='Module type')
+    parser.add_argument('--module', type=str, default='SimpleCNN',
+                        choices=['SimpleCNN', 'CNN4'],
+                        help='Module type:'
+                             'SimpleCNN, CNN4')
     parser.add_argument('--strategy', type=str, default='TrainPool',
                         help='Strategy type')
     parser.add_argument('--optimizer', type=str, default='Adam',

@@ -749,7 +749,7 @@ class MultiMLP(nn.Module):
                  use_quantized=False,
                  max_frozen_pool_size = -1,
                  instance_buffer_size_per_frozen_nw = 200,
-                 cnn_type=SimpleCNN
+                 cnn_type='SimpleCNN'
                  ):
         super().__init__()
 
