@@ -56,11 +56,11 @@ tp_skip_back_prop_threshold='0.0'
 #tp_skip_back_prop_threshold='0.3'
 
 tp_adwin_delta_in_log10='-3.0'
-tp_max_frozen_pool_size='11'
+tp_max_frozen_pool_size='3'
 per_task_mem_buff_size='300'
 
 model='SimpleCNN'
-model='CNN4'
+#model='CNN4'
 
 optimizer='Adam'
 l_rate='0.0005'
