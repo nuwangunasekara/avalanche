@@ -1328,7 +1328,8 @@ class MultiMLP(nn.Module):
             self.clear_frozen_pool()
             nn_list = self.train_nets
             nw_id = self.detected_task_id
-            self.buffer.add_items(x, y, nw_id)
+            if self.max_frozen_pool_size > 0:
+                self.buffer.add_items(x, y, nw_id)
             yy = y
             xx = x
 
