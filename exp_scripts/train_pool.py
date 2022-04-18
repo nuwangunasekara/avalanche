@@ -138,7 +138,7 @@ def main(args):
         x_shape = (3, 224, 224)
     # exit(0)
 
-    if args.module == 'SimpleMLP' or args.module == 'SimpleCNN' or args.module == 'CNN4':
+    if args.strategy != 'TrainPool':
         if args.module == 'SimpleMLP':
             model = SimpleMLP(hidden_size=args.hs, num_classes=scenario.n_classes, input_size=input_size)
         if args.module == 'CNN4':
@@ -156,7 +156,7 @@ def main(args):
         else:
             optimizer = None
         criterion = torch.nn.CrossEntropyLoss()
-    elif args.module == 'MultiMLP':
+    else: # args.strategy == 'TrainPool'
         if args.task_detector_type == 'ONE_CLASS':
             predict_method = PREDICT_METHOD_ONE_CLASS
         elif args.task_detector_type == 'MAJORITY_VOTE':
@@ -197,7 +197,8 @@ def main(args):
             use_1_channel_pretrained_for_1_channel=args.use_1_channel_pretrained_for_1_channel,
             use_quantized=args.use_quantized,
             max_frozen_pool_size=args.max_frozen_pool_size,
-            instance_buffer_size_per_frozen_nw=args.mem_buff_size
+            instance_buffer_size_per_frozen_nw=args.mem_buff_size,
+            cnn_type=args.module
             )
         optimizer = None
         criterion = None

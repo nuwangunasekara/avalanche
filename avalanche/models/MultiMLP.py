@@ -451,7 +451,6 @@ class ANN:
                  id,
                  learning_rate=0.03,
                  network_type=None,
-                 hidden_layers_for_mlp=default_mlp_hidden_layers,
                  num_classes=None,
                  device='cpu',
                  optimizer_type=OP_TYPE_SGD,
@@ -459,14 +458,14 @@ class ANN:
                  loss_estimator_delta=1e-3,
                  task_detector_type=PREDICT_METHOD_ONE_CLASS,
                  back_prop_skip_loss_threshold=0.6,
-                 train_nn_using_ex_static_f=False):
+                 train_nn_using_ex_static_f=False,
+                 cnn_type='SimpleCNN'):
         # configuration variables (which has the same name as init parameters)
         self.id = id
         self.frozen_id = None
         self.model_name = None
         self.learning_rate = learning_rate
         self.network_type = network_type
-        self.hidden_layers_for_MLP = deepcopy(hidden_layers_for_mlp)
         self.num_classes = num_classes
         self.device = device
         self.optimizer_type = optimizer_type
@@ -476,6 +475,7 @@ class ANN:
         self.task_detector_type = task_detector_type
         self.current_loss = None
         self.train_nn_using_ex_static_f = train_nn_using_ex_static_f
+        self.cnn_type=cnn_type
 
         # status variables
         self.net = None
@@ -530,21 +530,8 @@ class ANN:
         self.correctly_predicted_task_ids_probas_test_at_last = {}
         self.outputs = None
 
-        if self.hidden_layers_for_MLP is None:
-            pass
-        elif isinstance(self.hidden_layers_for_MLP, nn.Module):
-            # assumes input dimension is set properly in the network structure
-            self.net = deepcopy(self.hidden_layers_for_MLP)
-            self.initialize_net_para()
-        elif isinstance(self.hidden_layers_for_MLP, list):
-            if self.hidden_layers_for_MLP[0]['neurons'] is None or self.hidden_layers_for_MLP[0][
-                'nonlinearity'] is None:
-                print('Unknown hidden layer format is passed in: {}'.format(self.hidden_layers_for_MLP))
-                print('Expected format :{}'.format(default_mlp_hidden_layers))
-                exit(1)
         self.model_name = '{}_{}_{:05f}'.format(
-            'CNN' if self.network_type == NETWORK_TYPE_CNN else 'MLP_L1_' + str(
-                log(self.hidden_layers_for_MLP[0]['neurons'], 2) // 1),
+            self.cnn_type,
             self.optimizer_type,
             self.learning_rate)
 
@@ -579,16 +566,16 @@ class ANN:
         if self.network_type == NETWORK_TYPE_CNN:
             if len(self.x_shape) == 2:
                 number_of_channels = 0
-                # number_of_channels = self.x_shape[1]
             else:
                 number_of_channels = self.x_shape[1]
-            self.net = SimpleCNN(num_classes=self.num_classes, num_channels=number_of_channels)
+            if self.cnn_type == 'SimpleCNN':
+                self.net = SimpleCNN(num_classes=self.num_classes, num_channels=number_of_channels)
+            elif self.cnn_type == 'CNN4':
+                self.net = CNN4(num_classes=self.num_classes, num_channels=number_of_channels)
             # print_summary(self.net, self.x_shape)
             print('Number of parameters: {}'.format(count_parameters(self.net)))
         else:
             pass
-            # self.net = PyNet(hidden_layers=self.hidden_layers_for_MLP, num_classes=self.num_classes,
-            #                  input_dimensions=self.x_shape[0])
         self.initialize_net_para()
 
     def train_one_class_classifier(self, features, train_logistic_regression):
@@ -763,7 +750,8 @@ class MultiMLP(nn.Module):
                  use_1_channel_pretrained_for_1_channel=False,
                  use_quantized=False,
                  max_frozen_pool_size = -1,
-                 instance_buffer_size_per_frozen_nw = 200
+                 instance_buffer_size_per_frozen_nw = 200,
+                 cnn_type=SimpleCNN
                  ):
         super().__init__()
 
@@ -794,6 +782,7 @@ class MultiMLP(nn.Module):
         self.use_quantized = use_quantized
         self.max_frozen_pool_size = max_frozen_pool_size
         self.instance_buffer_size_per_frozen_nw = instance_buffer_size_per_frozen_nw
+        self.cnn_type = cnn_type
 
         # status variables
         self.train_nets = []  # type: List[ANN]
@@ -875,13 +864,8 @@ class MultiMLP(nn.Module):
             for lr_denominator_in_log10 in range(lr_denominator_in_log10_start_include,
                                                  lr_denominator_in_log10_stop_exclude):
                 for optimizer_type in optimizer_types:
-                    hidden_layers_for_mlp = None
                     network_type = NETWORK_TYPE_CNN
-                    if self.nn_pool_type != '6CNN':
-                        hidden_layers_for_mlp = [{'neurons': 2 ** number_of_neurons_in_log2, 'nonlinearity': Relu}]
-                        network_type = NETWORK_TYPE_MLP
                     tmp_ann = ANN(id=self.available_nn_id,
-                                  hidden_layers_for_mlp=hidden_layers_for_mlp,
                                   learning_rate=5 / (10 ** lr_denominator_in_log10),
                                   network_type=network_type,
                                   optimizer_type=optimizer_type,
@@ -890,7 +874,8 @@ class MultiMLP(nn.Module):
                                   task_detector_type=self.task_detector_type,
                                   num_classes=self.num_classes,
                                   device=self.device,
-                                  train_nn_using_ex_static_f= self.train_nn_using_ex_static_f)
+                                  train_nn_using_ex_static_f= self.train_nn_using_ex_static_f,
+                                  cnn_type=self.cnn_type)
                     self.train_nets.append(tmp_ann)
                     self.available_nn_id += 1
 
