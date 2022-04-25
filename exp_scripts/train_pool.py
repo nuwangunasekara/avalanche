@@ -7,6 +7,7 @@ from avalanche.benchmarks.classic.stream51 import CLStream51
 
 from avalanche.training.strategies import *
 from avalanche.models import *
+# from avalanche.models.hnet import HCNN
 from avalanche.models.MultiMLP import SimpleCNN, CNN4, count_parameters
 from avalanche.models.MultiMLP import PREDICT_METHOD_ONE_CLASS, PREDICT_METHOD_MAJORITY_VOTE, PREDICT_METHOD_RANDOM, \
     PREDICT_METHOD_TASK_ID_KNOWN, PREDICT_METHOD_NW_CONFIDENCE, PREDICT_METHOD_NAIVE_BAYES, PREDICT_METHOD_HT
@@ -109,11 +110,13 @@ def main(args):
         input_size = 28 * 28
         num_channels = 1
         x_shape=(1, 28, 28)
+        num_of_tasks = 4
     elif args.dataset == 'RotatedCIFAR10':
         scenario = RotatedCIFAR10_di(4, seed=None, rotations_list=(0, 90, 180, -90))
         input_size = 3 * 32 * 32
         num_channels = 3
         x_shape = (3, 32, 32)
+        num_of_tasks = 4
     elif args.dataset == 'LED_a' or args.dataset == 'LED_a_ex':
         input_size = 24
         num_channels = 0
@@ -128,6 +131,7 @@ def main(args):
         num_channels = 3
         scenario.n_classes = 10
         x_shape = (3, 32, 32)
+        num_of_tasks = 11
     elif args.dataset == 'CLStream51':
         scenario = CLStream51(scenario='instance', seed=10, eval_num=None,
                               dataset_root='/Scratch/ng98/CL/avalanche_data/',
@@ -200,6 +204,15 @@ def main(args):
             instance_buffer_size_per_frozen_nw=args.mem_buff_size,
             cnn_type=args.module
             )
+
+        # x_shape = (x_shape[1], x_shape[2], x_shape[0])
+        # model = HCNN(in_shape=x_shape,
+        #              num_classes=scenario.n_classes,
+        #              device=device,
+        #              lr=args.lr,
+        #              num_of_tasks=num_of_tasks
+        #              )
+
         optimizer = None
         criterion = None
 
