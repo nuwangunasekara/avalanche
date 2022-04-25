@@ -83,6 +83,8 @@ class InstanceBuffer:
         self.counter: Dict[Any, Dict[Any, int]] = {}
 
     def add_items(self, x, y, t_id):
+        if self.mem_size <= 0:
+            return
         # for each pattern, add it to the memory or not
         for i in range(len(x)):
             pattern = x[i]
@@ -132,6 +134,9 @@ class InstanceBuffer:
 
 
     def get_union_buffer(self, x, y, task_id):
+        if self.mem_size <= 0:
+            return x, y
+
         xx = x.detach().cpu()
         yy = y.detach().cpu()
 
