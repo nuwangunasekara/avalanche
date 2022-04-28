@@ -57,8 +57,8 @@ tp_skip_back_prop_threshold='0.0'
 
 tp_adwin_delta_in_log10='-3.0'
 # -1 for infinite.
-tp_max_frozen_pool_size='6'
-per_task_mem_buff_size='0'
+tp_max_frozen_pool_size='10'
+per_task_mem_buff_size='900'
 
 model='SimpleCNN'
 #model='CNN4'
