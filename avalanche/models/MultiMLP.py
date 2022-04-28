@@ -1256,16 +1256,16 @@ class MultiMLP(nn.Module):
                     best_matched_frozen_nn_idx = self.get_network_with_best_confidence(x)
 
                 if (0 <= best_matched_frozen_nn_idx < len(self.frozen_nets)):
-                    nn_list = self.frozen_nets
+                    train_nn_list = self.frozen_nets
 
-                    nn_list[best_matched_frozen_nn_idx].chosen_for_test += r
+                    train_nn_list[best_matched_frozen_nn_idx].chosen_for_test += r
 
-                    if nn_list[best_matched_frozen_nn_idx].seen_task_ids_train.get(true_task_id) is not None:
+                    if train_nn_list[best_matched_frozen_nn_idx].seen_task_ids_train.get(true_task_id) is not None:
                         self.correct_network_selected_count += r
-                        if nn_list[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test.get(true_task_id) is None:
-                            nn_list[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test[true_task_id] = r
+                        if train_nn_list[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test.get(true_task_id) is None:
+                            train_nn_list[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test[true_task_id] = r
                         else:
-                            nn_list[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test[true_task_id] += r
+                            train_nn_list[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test[true_task_id] += r
                 else:
                     if len(self.frozen_nets) >= 0:
                         print('Index error for best_matched_frozen_nn_index ({}) frozen_nets size ({}) '.format(best_matched_frozen_nn_idx, len(self.frozen_nets)))
@@ -1320,21 +1320,21 @@ class MultiMLP(nn.Module):
                 self.samples_per_each_task_at_train[true_task_id] += r
 
         c = None
-        nn_list = []
+        train_nn_list = []
 
         if self.max_frozen_pool_size > 0 and  len(self.frozen_net_module_paths) >= self.max_frozen_pool_size:
             self.load_frozen_pool()
             weights_for_frozen_nns, best_matched_frozen_nn_idx = \
                 self.get_best_matched_nn_index_and_weights_via_predictor(
                     self.task_detector_type, self.frozen_nets, static_features)
-            nn_list.append(self.frozen_nets[best_matched_frozen_nn_idx])
+            train_nn_list.append(self.frozen_nets[best_matched_frozen_nn_idx])
             nw_id = best_matched_frozen_nn_idx
             xx, yy = self.buffer.get_union_buffer(x, y, nw_id)
             if self.use_static_f_ex:
                 static_features = self.get_static_features(xx, self.f_ex, fx_device=self.f_ex_device)
         else:
             self.clear_frozen_pool()
-            nn_list = self.train_nets
+            train_nn_list = self.train_nets
             nw_id = self.detected_task_id
             if self.max_frozen_pool_size > 0:
                 self.buffer.add_items(x, y, nw_id)
@@ -1350,7 +1350,7 @@ class MultiMLP(nn.Module):
 
 
 
-        self.forward_pass(nn_list,
+        self.forward_pass(train_nn_list,
                           xx=xx,
                           r=r,
                           c=c,
@@ -1358,13 +1358,13 @@ class MultiMLP(nn.Module):
                           true_task_id=true_task_id,
                           static_features=static_features)
 
-        nn_with_lowest_loss = self.get_nn_index_with_lowest_loss(nn_list,
+        nn_with_lowest_loss = self.get_nn_index_with_lowest_loss(train_nn_list,
                                                                  use_estimated_loss= True)
         # outputs = deepcopy(self.train_nets[nn_with_lowest_loss].outputs.detach())
 
-        self.update_loss_estimator(nn_list)
-        self.call_backprop(nn_list)
-        self.reset_loss_and_bp_buffers(nn_list)
+        self.update_loss_estimator(train_nn_list)
+        self.call_backprop(train_nn_list)
+        self.reset_loss_and_bp_buffers(train_nn_list)
 
         if self.auto_detect_tasks:
             task_detected = False
@@ -1375,8 +1375,8 @@ class MultiMLP(nn.Module):
                 self.samples_seen_for_train_after_dd = 0
                 self.add_to_frozen_pool()
 
-        nn_list[nn_with_lowest_loss].chosen_after_train += r
-        return nn_list[nn_with_lowest_loss].outputs
+        train_nn_list[nn_with_lowest_loss].chosen_after_train += r
+        return train_nn_list[nn_with_lowest_loss].outputs
 
     def add_to_train_pool(self, nn_with_lowest_loss):
         print("Adding item to training pool===")
