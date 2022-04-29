@@ -132,6 +132,14 @@ class InstanceBuffer:
                 # this class.
                 current_counter[target_value] += 1
 
+    def get_count(self, task_id):
+
+        counts = self.counter.get(task_id, None)
+        if counts is None:
+            return 0
+        else:
+            return sum(counts.values())
+
 
     def get_union_buffer(self, x, y, task_id):
         if self.mem_size <= 0:
@@ -1324,22 +1332,33 @@ class MultiMLP(nn.Module):
 
         if self.max_frozen_pool_size > 0 and  len(self.frozen_net_module_paths) >= self.max_frozen_pool_size:
             self.load_frozen_pool()
-            weights_for_frozen_nns, best_matched_frozen_nn_idx = \
-                self.get_best_matched_nn_index_and_weights_via_predictor(
-                    self.task_detector_type, self.frozen_nets, static_features)
-            train_nn_list.append(self.frozen_nets[best_matched_frozen_nn_idx])
-            nw_id = best_matched_frozen_nn_idx
-            xx, yy = self.buffer.get_union_buffer(x, y, nw_id)
-            if self.use_static_f_ex:
-                static_features = self.get_static_features(xx, self.f_ex, fx_device=self.f_ex_device)
-        else:
+            self.forward_pass(self.frozen_nets,
+                              xx=x,
+                              r=r,
+                              c=c,
+                              y=y,
+                              true_task_id=true_task_id,
+                              static_features=static_features # to train one-class classifier
+                              )
+            nn_with_lowest_current_loss = self.get_nn_index_with_lowest_loss(self.frozen_nets,
+                                                                     use_estimated_loss=False # use current_loss
+                                                                     )
+            self.reset_loss_and_bp_buffers(self.frozen_nets)
+            train_nn_list.append(self.frozen_nets[nn_with_lowest_current_loss])
+            nw_id = nn_with_lowest_current_loss
+        else: # max_frozen_pool_size is infinite or frozen pool is not fully filled
             self.clear_frozen_pool()
             train_nn_list = self.train_nets
             nw_id = self.detected_task_id
             if self.max_frozen_pool_size > 0:
                 self.buffer.add_items(x, y, nw_id)
-            yy = y
-            xx = x
+
+        yy = y
+        xx = x
+        if self.buffer.get_count(nw_id) >= r:
+            xx, yy = self.buffer.get_union_buffer(x, y, nw_id)
+            if self.use_static_f_ex:
+                static_features = self.get_static_features(xx, self.f_ex, fx_device=self.f_ex_device)
 
         if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or \
                 self.task_detector_type == PREDICT_METHOD_HT or \
@@ -1358,8 +1377,7 @@ class MultiMLP(nn.Module):
                           true_task_id=true_task_id,
                           static_features=static_features)
 
-        nn_with_lowest_loss = self.get_nn_index_with_lowest_loss(train_nn_list,
-                                                                 use_estimated_loss= True)
+        nn_with_lowest_loss = self.get_nn_index_with_lowest_loss(train_nn_list, use_estimated_loss= True)
         # outputs = deepcopy(self.train_nets[nn_with_lowest_loss].outputs.detach())
 
         self.update_loss_estimator(train_nn_list)
