@@ -951,6 +951,10 @@ class MultiMLP(nn.Module):
 
         return one_class_df, one_class_y, one_class_p
 
+    def get_nb_or_ht_predicted_nn_index(self, static_features):
+        predictions = self.nb_or_ht_predict(static_features)
+        return np.argmax(predictions.mean(axis=0), axis=0).item()
+
     def get_best_matched_nn_index_and_weights_via_predictor(self, predictor, net_list, static_features=None):
         if predictor == PREDICT_METHOD_ONE_CLASS:
             predictions = []
@@ -1332,20 +1336,22 @@ class MultiMLP(nn.Module):
 
         if self.max_frozen_pool_size > 0 and  len(self.frozen_net_module_paths) >= self.max_frozen_pool_size:
             self.load_frozen_pool()
-            self.forward_pass(self.frozen_nets,
-                              xx=x,
-                              r=r,
-                              c=c,
-                              y=y,
-                              true_task_id=true_task_id,
-                              static_features=static_features # to train one-class classifier
-                              )
-            nn_with_lowest_current_loss = self.get_nn_index_with_lowest_loss(self.frozen_nets,
-                                                                     use_estimated_loss=False # use current_loss
-                                                                     )
-            self.reset_loss_and_bp_buffers(self.frozen_nets)
-            train_nn_list.append(self.frozen_nets[nn_with_lowest_current_loss])
-            nw_id = nn_with_lowest_current_loss
+            nw_id = self.get_nb_or_ht_predicted_nn_index(static_features)
+            # self.forward_pass(self.frozen_nets,
+            #                   xx=x,
+            #                   r=r,
+            #                   c=c,
+            #                   y=y,
+            #                   true_task_id=true_task_id,
+            #                   static_features=static_features # to train one-class classifier
+            #                   )
+            # nn_with_lowest_current_loss = self.get_nn_index_with_lowest_loss(self.frozen_nets,
+            #                                                          use_estimated_loss=False # use current_loss
+            #                                                          )
+            # self.reset_loss_and_bp_buffers(self.frozen_nets)
+            # nw_id = nn_with_lowest_current_loss
+            train_nn_list.append(self.frozen_nets[nw_id])
+
         else: # max_frozen_pool_size is infinite or frozen pool is not fully filled
             self.clear_frozen_pool()
             train_nn_list = self.train_nets
