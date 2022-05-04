@@ -870,6 +870,14 @@ class MultiMLP(nn.Module):
             lr_denominator_in_log10_stop_exclude = 7
 
             optimizer_types = ([OP_TYPE_ADAM_NC])
+        elif self.nn_pool_type == '1CNN':
+            neurons_in_log2_start_include = 10
+            neurons_in_log2_stop_exclude = 11
+            # l_rate = '0.0005'
+            lr_denominator_in_log10_start_include = 4
+            lr_denominator_in_log10_stop_exclude = 5
+
+            optimizer_types = ([OP_TYPE_ADAM_NC])
 
         for number_of_neurons_in_log2 in range(neurons_in_log2_start_include, neurons_in_log2_stop_exclude):
             for lr_denominator_in_log10 in range(lr_denominator_in_log10_start_include,
