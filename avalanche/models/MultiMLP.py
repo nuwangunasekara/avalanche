@@ -140,11 +140,10 @@ class InstanceBuffer:
         else:
             return sum(counts.values())
 
-
-    def get_union_buffer(self, x, y, task_id):
+    def get_mixed_sample(self, x, y, task_id, only_from_buffer=False):
         if self.mem_size <= 0:
             return x, y
-
+        device = x.get_device()
         xx = x.detach().cpu()
         yy = y.detach().cpu()
 
@@ -156,20 +155,27 @@ class InstanceBuffer:
             targets = targets.view(targets.shape[0],)
 
             buffer_size = len(patterns)
-            buffer_copy_size = min(x_size//2, buffer_size)
+            if only_from_buffer:
+                buffer_copy_size = min(x_size, buffer_size)
+            else:
+                buffer_copy_size = min(x_size//2, buffer_size)
+                replace_indices = sample(range(x_size), buffer_copy_size)
+                replace_indices = torch.tensor(replace_indices).to(torch.long).cpu()
 
             indices_to_copy = sample(range(buffer_size), buffer_copy_size)
             indices_to_copy = torch.tensor(indices_to_copy).to(torch.long).cpu()
 
-            replace_indices = sample(range(x_size), buffer_copy_size)
-            replace_indices = torch.tensor(replace_indices).to(torch.long).cpu()
-            try:
-                xx = xx.index_copy_(0, replace_indices, torch.index_select(patterns, 0, indices_to_copy))
-                yy = yy.index_copy_(0, replace_indices, torch.index_select(targets, 0, indices_to_copy))
-            except Exception as e:
-                print('Replace exception: {}'.format(e))
+            if only_from_buffer:
+                xx = torch.index_select(patterns, 0, indices_to_copy)
+                yy = torch.index_select(targets, 0, indices_to_copy)
+            else:
+                try:
+                    xx = xx.index_copy_(0, replace_indices, torch.index_select(patterns, 0, indices_to_copy))
+                    yy = yy.index_copy_(0, replace_indices, torch.index_select(targets, 0, indices_to_copy))
+                except Exception as e:
+                    print('Replace exception: {}'.format(e))
 
-        return xx, yy
+        return xx.to(device), yy.to(device)
 
 
 def count_parameters(model):
@@ -1052,15 +1058,15 @@ class MultiMLP(nn.Module):
             self.frozen_nets.append(load_model(self.frozen_net_module_paths[i]['abstract_model_file_name'],
                                                self.frozen_net_module_paths[i]['nn_model_file_name']))
 
-    def reset(self):
-        if self.reset_training_pool:
-            # configuration variables (which has the same name as init parameters) should be copied by the caller function
-            for i in range(len(self.train_nets)):
-                self.train_nets[i] = None
-            self.train_nets = None
-            self.train_nets = []  # type: List[ANN]
-            self.create_nn_pool()
-        return self
+    # def reset(self):
+    #     if self.reset_training_pool:
+    #         # configuration variables (which has the same name as init parameters) should be copied by the caller function
+    #         for i in range(len(self.train_nets)):
+    #             self.train_nets[i] = None
+    #         self.train_nets = None
+    #         self.train_nets = []  # type: List[ANN]
+    #         self.create_nn_pool()
+    #     return self
 
     def reset_one_class_detectors_and_loss_estimators_seen_task_ids(self):
         for n in self.train_nets:
@@ -1079,10 +1085,10 @@ class MultiMLP(nn.Module):
         idx = self.get_nn_index_with_lowest_loss(self.train_nets, use_estimated_loss=True)
         self.print_nn_list([self.train_nets[idx]], list_type='train_net', dumped_at='task_detect')
 
-        for i in range(len(self.train_nets)):
-            if i != idx:  # clear other nets memory
-                if self.reset_training_pool:
-                    self.train_nets[i] = None
+        # for i in range(len(self.train_nets)):
+        #     if i != idx:  # clear other nets memory
+        #         if self.reset_training_pool:
+        #             self.train_nets[i] = None
 
         self.save_best_model_and_append_to_paths(idx)
 
@@ -1178,10 +1184,10 @@ class MultiMLP(nn.Module):
         for i in range(len(nn_list)):
             if self.use_threads:
                 t.append(threading.Thread(target=net_train, args=(
-                nn_list[i], xx, r, c, y, true_task_id,
+                nn_list[i], xx[i], r, c, y[i], true_task_id,
                 self.use_one_class_probas, static_features,)))
             else:
-                nn_list[i].train_net(xx, y, c, r, true_task_id,
+                nn_list[i].train_net(xx[i], y[i], c, r, true_task_id,
                                              self.use_one_class_probas,
                                              static_features=static_features)
         if self.use_threads:
@@ -1341,9 +1347,10 @@ class MultiMLP(nn.Module):
 
         c = None
         train_nn_list = []
-
+        xx = []
+        yy = []
+        frozen_pool_full = False
         if self.max_frozen_pool_size > 0 and  len(self.frozen_net_module_paths) >= self.max_frozen_pool_size:
-            self.load_frozen_pool()
             nw_id = self.get_nb_or_ht_predicted_nn_index(static_features)
             # self.forward_pass(self.frozen_nets,
             #                   xx=x,
@@ -1358,21 +1365,36 @@ class MultiMLP(nn.Module):
             #                                                          )
             # self.reset_loss_and_bp_buffers(self.frozen_nets)
             # nw_id = nn_with_lowest_current_loss
-            train_nn_list.append(self.frozen_nets[nw_id])
-
+            frozen_pool_full = True
         else: # max_frozen_pool_size is infinite or frozen pool is not fully filled
-            self.clear_frozen_pool()
-            train_nn_list = self.train_nets
             nw_id = self.detected_task_id
-            if self.max_frozen_pool_size > 0:
-                self.buffer.add_items(x, y, nw_id)
 
-        yy = y
-        xx = x
-        if self.buffer.get_count(nw_id) >= r:
-            xx, yy = self.buffer.get_union_buffer(x, y, nw_id)
-            if self.use_static_f_ex:
-                static_features = self.get_static_features(xx, self.f_ex, fx_device=self.f_ex_device)
+        self.buffer.add_items(x, y, nw_id)
+        xxx, yyy = self.buffer.get_mixed_sample(x, y, nw_id)
+
+        self.load_frozen_pool()
+        frozen_indexes = [i for i in range(len(self.frozen_nets))]
+        if frozen_pool_full:
+            train_nn_list.append(self.frozen_nets[nw_id])
+            frozen_indexes.remove(nw_id)
+            xx.append(xxx)
+            yy.append(yyy)
+        else:
+            for i in range(len(self.train_nets)):
+                train_nn_list.append(self.train_nets[i])
+                xx.append(xxx)
+                yy.append(yyy)
+
+        # random train frozen
+        if len(frozen_indexes) > 0:
+            frozen_nw_to_train = sample(frozen_indexes, 1)[0]
+            xxxx, yyyy = self.buffer.get_mixed_sample(x, y, frozen_nw_to_train, only_from_buffer=True)
+            train_nn_list.append(self.frozen_nets[frozen_nw_to_train])
+            xx.append(xxxx)
+            yy.append(yyyy)
+
+        if self.use_static_f_ex:
+            static_features = self.get_static_features(xxx, self.f_ex, fx_device=self.f_ex_device)
 
         if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or \
                 self.task_detector_type == PREDICT_METHOD_HT or \
@@ -1403,44 +1425,44 @@ class MultiMLP(nn.Module):
             for m in self.train_nets:
                 if m.task_detected:
                     task_detected = True
+                    m.task_detected = False
             if task_detected:
                 self.samples_seen_for_train_after_dd = 0
                 self.add_to_frozen_pool()
 
         train_nn_list[nn_with_lowest_loss].chosen_after_train += r
-        return train_nn_list[nn_with_lowest_loss].outputs
+        outputs = train_nn_list[nn_with_lowest_loss].outputs
+        self.clear_frozen_pool()
+        return outputs
 
-    def add_to_train_pool(self, nn_with_lowest_loss):
-        print("Adding item to training pool===")
-        # Append a copy of nn_with_lowest_loss to the training pool
-        model_save_name = 'tmp'
-        abstract_model_file_name = os.path.join(self.model_dump_dir, model_save_name)
-        nn_model_file_name = os.path.join(self.model_dump_dir, model_save_name + '_nn')
-
-        save_model(self.train_nets[nn_with_lowest_loss], abstract_model_file_name, nn_model_file_name, preserve_net=True)
-        tmp_model = load_model(abstract_model_file_name, nn_model_file_name)
-
-        self.train_nets.append(tmp_model)
-        os.remove(abstract_model_file_name)
-        os.remove(nn_model_file_name)
-
-        #self.train_nets.append(deepcopy(self.train_nets[nn_with_lowest_loss]))
-
-        # self.train_nets.append(self.train_nets[nn_with_lowest_loss])
-
-        if self.train_nets[nn_with_lowest_loss].task_detected:
-            # preserve the old loss estimator on this NW as we are going to train NB with newly added NW
-            # self.train_nets[nn_with_lowest_loss].loss_estimator = self.train_nets[nn_with_lowest_loss].old_loss_estimator
-            pass
-        self.train_nets[nn_with_lowest_loss].old_loss_estimator = None
-
-        self.detected_task_id += 1
+    # def add_to_train_pool(self, nn_with_lowest_loss):
+    #     print("Adding item to training pool===")
+    #     # Append a copy of nn_with_lowest_loss to the training pool
+    #     model_save_name = 'tmp'
+    #     abstract_model_file_name = os.path.join(self.model_dump_dir, model_save_name)
+    #     nn_model_file_name = os.path.join(self.model_dump_dir, model_save_name + '_nn')
+    #
+    #     save_model(self.train_nets[nn_with_lowest_loss], abstract_model_file_name, nn_model_file_name, preserve_net=True)
+    #     tmp_model = load_model(abstract_model_file_name, nn_model_file_name)
+    #
+    #     self.train_nets.append(tmp_model)
+    #     os.remove(abstract_model_file_name)
+    #     os.remove(nn_model_file_name)
+    #
+    #
+    #     if self.train_nets[nn_with_lowest_loss].task_detected:
+    #         # preserve the old loss estimator on this NW as we are going to train NB with newly added NW
+    #         # self.train_nets[nn_with_lowest_loss].loss_estimator = self.train_nets[nn_with_lowest_loss].old_loss_estimator
+    #         pass
+    #     self.train_nets[nn_with_lowest_loss].old_loss_estimator = None
+    #
+    #     self.detected_task_id += 1
 
     def add_to_frozen_pool(self):
         if self.max_frozen_pool_size == -1 or (self.max_frozen_pool_size > 0 and len(self.frozen_net_module_paths) < self.max_frozen_pool_size ):
             self.add_nn_with_lowest_loss_to_frozen_list()
             self.reset_one_class_detectors_and_loss_estimators_seen_task_ids()
-            self.reset()
+            # self.reset()
 
     def print_stats_hader(self):
         print('Training pool size {}'.format(len(self.train_nets)))
