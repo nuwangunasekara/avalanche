@@ -19,7 +19,8 @@ strategy=(TrainPool)
 train_mb_size='16'
 eval_mb_size='1'
 
-tp_pool_type='6CNN'
+#tp_pool_type='6CNN'
+tp_pool_type='1CNN'
 
 tp_predict_methods_array=('ONE_CLASS' 'ONE_CLASS_end' 'MAJORITY_VOTE' 'RANDOM' 'NAIVE_BAYES' 'NAIVE_BAYES_end' 'TASK_ID_KNOWN' 'HT')
 tp_predict_methods_array=('MAJORITY_VOTE' 'RANDOM' 'TASK_ID_KNOWN')
