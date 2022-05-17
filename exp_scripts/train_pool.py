@@ -25,6 +25,39 @@ import argparse
 
 PROGRAM_NAME = "train_pool_app"
 
+def scenario_mini_imagenet_ni(
+        dir = None
+):
+    train_experiences = []
+    test_experiences = []
+    task_labels = []
+    for i in range(10):
+        task_labels.append(i)
+        for test_or_train in ('train', 'test'):
+            x = None
+            y = None
+            for x_or_y in ('x', 'y'):
+                f = '{}/{}/{}_{}_{}.npy'.format(dir, test_or_train, test_or_train, x_or_y, i)
+                np_array = np.load(f)
+                if x_or_y == 'x':
+                    x = torch.as_tensor(np_array, dtype=torch.float)
+                    x = np.swapaxes(x, 1, 3)
+                else:
+                    y = torch.as_tensor(np_array, dtype=torch.long).view(-1, )
+
+            if test_or_train == 'train':
+                train_experiences.append((x, y))
+            else:
+                test_experiences.append((x, y))
+
+    scenario = tensors_benchmark(
+        train_tensors=train_experiences,
+        test_tensors=test_experiences,
+        task_labels=task_labels,
+        complete_test_set_only=False
+    )
+    scenario.n_classes = 100
+    return scenario
 
 def scenario_from_csv_with_drift(csv_file, n_classes, n_input_features, minibatch_size=10, drift_width=250000):
     class MyDataset(Dataset):
@@ -105,6 +138,9 @@ def main(args):
     print("======\n")
 
     # create streams
+    mini_imagenet_base_dir = '/Scratch/repository/ng98/CL_SSD_Arch/CL/avalanche_data/mini_imagenet/'
+    # mini_imagenet_base_dir = '/Users/ng98/Desktop/online-continual-learning/datasets/mini_imagenet'
+
     if args.dataset == 'RotatedMNIST':
         scenario = RotatedMNIST_di(4, seed=None, rotations_list=(0, 90, 180, -90))
         input_size = 28 * 28
@@ -131,7 +167,7 @@ def main(args):
         num_channels = 3
         scenario.n_classes = 10
         x_shape = (3, 32, 32)
-        num_of_tasks = 11
+        num_of_tasks = 10
     elif args.dataset == 'CLStream51':
         scenario = CLStream51(scenario='instance', seed=10, eval_num=None,
                               dataset_root='/Scratch/ng98/CL/avalanche_data/',
@@ -140,6 +176,24 @@ def main(args):
         input_size = 3 * 224 * 224
         num_channels = 3
         x_shape = (3, 224, 224)
+    elif args.dataset == 'MiniImagenetNoise':
+        scenario = scenario_mini_imagenet_ni(dir=mini_imagenet_base_dir + 'noise/numpy')
+        input_size = 3 * 84 * 84
+        num_channels = 3
+        x_shape = (3, 84, 84)
+        num_of_tasks = 10
+    elif args.dataset == 'MiniImagenetOcclusion':
+        scenario = scenario_mini_imagenet_ni(dir=mini_imagenet_base_dir + 'occlusion/numpy')
+        input_size = 3 * 84 * 84
+        num_channels = 3
+        x_shape = (3, 84, 84)
+        num_of_tasks = 10
+    elif args.dataset == 'MiniImagenetBlur':
+        scenario = scenario_mini_imagenet_ni(dir=mini_imagenet_base_dir + 'blur/numpy')
+        input_size = 3 * 84 * 84
+        num_channels = 3
+        x_shape = (3, 84, 84)
+        num_of_tasks = 10
     # exit(0)
 
     if args.strategy != 'TrainPool':
@@ -202,7 +256,8 @@ def main(args):
             use_quantized=args.use_quantized,
             max_frozen_pool_size=args.max_frozen_pool_size,
             instance_buffer_size_per_frozen_nw=args.mem_buff_size,
-            cnn_type=args.module
+            cnn_type=args.module,
+            lr_decay=0.999995
             )
 
         # x_shape = (x_shape[1], x_shape[2], x_shape[0])
