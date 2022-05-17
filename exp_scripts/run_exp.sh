@@ -11,6 +11,7 @@ clean_dir="TRUE"
 dataset=(LED_a RotatedMNIST RotatedCIFAR10 CORe50 CLStream51)
 dataset=(CORe50 RotatedMNIST RotatedCIFAR10 )
 dataset=(RotatedMNIST RotatedCIFAR10 CORe50 CLStream51)
+dataset=(RotatedMNIST RotatedCIFAR10 CORe50 MiniImagenetNoise MiniImagenetOcclusion MiniImagenetBlur)
 dataset=(RotatedMNIST RotatedCIFAR10 CORe50)
 strategy=(LwF EWC GDumb ER TrainPool)
 strategy=(LwF EWC GDumb ER)
@@ -59,7 +60,7 @@ tp_skip_back_prop_threshold='0.0'
 tp_adwin_delta_in_log10='-3.0'
 # -1 for infinite.
 tp_max_frozen_pool_size='-1'
-per_task_mem_buff_size='1000'
+per_task_mem_buff_size='0'
 
 model='SimpleCNN'
 #model='CNN4'
