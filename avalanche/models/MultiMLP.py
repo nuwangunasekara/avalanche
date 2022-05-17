@@ -1609,7 +1609,7 @@ class MultiMLP(nn.Module):
             xxx = torch.cat((x, buf_inputs))
             yyy = torch.cat((y, buf_labels))
         else:
-            xxx = x if random.randint(0,3) == 1 else augmentor(x)
+            xxx = augmentor(x) if random.randint(0,3) == 1 else x
             yyy = y
 
         self.load_frozen_pool()
