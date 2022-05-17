@@ -1604,12 +1604,12 @@ class MultiMLP(nn.Module):
         if not self.buffer.is_empty():
             buf_inputs, buf_labels, buf_indexes = self.buffer.get_data(
                 r, # batch size
-                transform=None if random.randint(0,1) == 1 else augmentor,
+                transform=None if random.randint(0,3) == 1 else augmentor,
                 return_indexes=True)
             xxx = torch.cat((x, buf_inputs))
             yyy = torch.cat((y, buf_labels))
         else:
-            xxx = x if random.randint(0,1) == 1 else augmentor(x)
+            xxx = x if random.randint(0,3) == 1 else augmentor(x)
             yyy = y
 
         self.load_frozen_pool()
