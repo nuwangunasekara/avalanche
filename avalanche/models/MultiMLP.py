@@ -72,17 +72,18 @@ PREDICT_METHOD_NW_CONFIDENCE = 4
 PREDICT_METHOD_NAIVE_BAYES = 5
 PREDICT_METHOD_HT = 6
 
-
 NO_OF_CHANNELS = 3
 
 augmentor = transforms.Compose([
     transforms.RandomCrop(32, padding=4),
     transforms.RandomHorizontalFlip()])
 
+
 def apply_decay(decay, lr, optimizer, num_iter):
-	learn_rate = lr * (decay ** num_iter)
-	for param_group in optimizer.param_groups:
-	    param_group['lr'] = learn_rate
+    learn_rate = lr * (decay ** num_iter)
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = learn_rate
+
 
 def reservoir(num_seen_examples: int, buffer_size: int) -> int:
     """
@@ -105,6 +106,7 @@ class Buffer:
     """
     The memory buffer of rehearsal method.
     """
+
     def __init__(self, buffer_size, device):
         self.buffer_size = buffer_size
         self.device = device
@@ -136,8 +138,7 @@ class Buffer:
             if attr is not None and not hasattr(self, attr_str):
                 typ = torch.int64 if attr_str.endswith('els') else torch.float32
                 setattr(self, attr_str, torch.zeros((self.buffer_size,
-                        *attr.shape[1:]), dtype=typ, device=self.device))
-
+                                                     *attr.shape[1:]), dtype=typ, device=self.device))
 
     def merge_scores(self):
         scaling_factor = self.importance_scores.abs().mean() * self.balance_scores.abs().mean()
@@ -200,7 +201,7 @@ class Buffer:
                 else:
                     self.dict[labels[i].item()] = 1
 
-    def get_data(self, size: int, transform: transforms=None, return_indexes=False) -> Tuple:
+    def get_data(self, size: int, transform: transforms = None, return_indexes=False) -> Tuple:
         """
         Random samples a batch of size items.
         :param size: the number of requested items
@@ -216,11 +217,11 @@ class Buffer:
         choice = np.random.choice(self.examples.shape[0], size=size, replace=False)
         if transform is None: transform = lambda x: x
         ret_tuple = (torch.stack([transform(ee.cpu())
-                            for ee in self.examples[choice]]).to(self.device),)
+                                  for ee in self.examples[choice]]).to(self.device),)
         for attr_str in self.attributes[1:]:
             if hasattr(self, attr_str):
                 attr = getattr(self, attr_str)
-                ret_tuple += (attr[choice], )
+                ret_tuple += (attr[choice],)
         if not return_indexes:
             return ret_tuple
         else:
@@ -235,7 +236,7 @@ class Buffer:
         else:
             return False
 
-    def get_all_data(self, transform: transforms=None) -> Tuple:
+    def get_all_data(self, transform: transforms = None) -> Tuple:
         """
         Return all the items in the memory buffer.
         :param transform: the transformation to be applied (data augmentation)
@@ -243,7 +244,7 @@ class Buffer:
         """
         if transform is None: transform = lambda x: x
         ret_tuple = (torch.stack([transform(ee.cpu())
-                            for ee in self.examples]).to(self.device),)
+                                  for ee in self.examples]).to(self.device),)
         for attr_str in self.attributes[1:]:
             if hasattr(self, attr_str):
                 attr = getattr(self, attr_str)
@@ -296,8 +297,8 @@ class InstanceBuffer:
                 )
 
             if (
-                target_value not in current_counter
-                or current_counter[target_value] < patterns_per_class
+                    target_value not in current_counter
+                    or current_counter[target_value] < patterns_per_class
             ):
                 # add new pattern into memory
                 if sum(current_counter.values()) >= self.mem_size:
@@ -348,19 +349,21 @@ class InstanceBuffer:
 
         xx = []
         yy = []
-        for i in range(len(task_set)-1):
-            x, y = self.get_mixed_sample(None, None, task_set[i], only_from_buffer=True, only_from_buffer_size=per_task_sample_size, only_from_buffer_device=device)
+        for i in range(len(task_set) - 1):
+            x, y = self.get_mixed_sample(None, None, task_set[i], only_from_buffer=True,
+                                         only_from_buffer_size=per_task_sample_size, only_from_buffer_device=device)
             xx.append(x)
             yy.append(y)
 
-        x, y = self.get_mixed_sample(None, None, task_set[-1], only_from_buffer=True, only_from_buffer_size=last_task_sample_size, only_from_buffer_device=device)
+        x, y = self.get_mixed_sample(None, None, task_set[-1], only_from_buffer=True,
+                                     only_from_buffer_size=last_task_sample_size, only_from_buffer_device=device)
         xx.append(x)
         yy.append(y)
 
         return torch.cat(tuple(xx), 0), torch.cat(tuple(yy), 0)
 
-
-    def get_mixed_sample(self, x, y, task_id, only_from_buffer=False, only_from_buffer_size=None, only_from_buffer_device=None):
+    def get_mixed_sample(self, x, y, task_id, only_from_buffer=False, only_from_buffer_size=None,
+                         only_from_buffer_device=None):
         if self.mem_size <= 0:
             return x, y
 
@@ -377,13 +380,13 @@ class InstanceBuffer:
             patterns, targets = self.ext_mem[task_id]
             patterns = torch.stack(patterns)
             targets = torch.stack(targets)
-            targets = targets.view(targets.shape[0],)
+            targets = targets.view(targets.shape[0], )
 
             buffer_size = len(patterns)
             if only_from_buffer:
                 buffer_copy_size = min(x_size, buffer_size)
             else:
-                buffer_copy_size = min(x_size//2, buffer_size)
+                buffer_copy_size = min(x_size // 2, buffer_size)
                 replace_indices = sample(range(x_size), buffer_copy_size)
                 replace_indices = torch.tensor(replace_indices).to(torch.long).to(device)
 
@@ -395,8 +398,10 @@ class InstanceBuffer:
                 yy = torch.index_select(targets, 0, indices_to_copy).detach().clone()
             else:
                 try:
-                    xx = xx.index_copy_(0, replace_indices, torch.index_select(patterns, 0, indices_to_copy).detach().clone())
-                    yy = yy.index_copy_(0, replace_indices, torch.index_select(targets, 0, indices_to_copy).detach().clone())
+                    xx = xx.index_copy_(0, replace_indices,
+                                        torch.index_select(patterns, 0, indices_to_copy).detach().clone())
+                    yy = yy.index_copy_(0, replace_indices,
+                                        torch.index_select(targets, 0, indices_to_copy).detach().clone())
                 except Exception as e:
                     print('Replace exception: {}'.format(e))
 
@@ -405,6 +410,7 @@ class InstanceBuffer:
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
 
 # def print_summary(model, input_dims: tuple):
 #     i_dims = input_dims[1:len(input_dims)] if len(input_dims) == 4 else input_dims
@@ -429,7 +435,7 @@ def create_static_feature_extractor(
 
         # original_model = torch.load(single_channel_fx_path)
         # original_model.eval()
-    else: # 3_channel_data
+    else:  # 3_channel_data
         # https://keras.io/api/applications/
         # https://pytorch.org/hub/
         # https://pytorch.org/tutorials/intermediate/quantized_transfer_learning_tutorial.html
@@ -456,7 +462,7 @@ def create_static_feature_extractor(
             # need to implement
             # layers['dequant'] = original_model.dequant  # Dequantize the output
             pass
-    else: # 3_channel_data
+    else:  # 3_channel_data
         # Step 1. Isolate the feature extractor.
         if quantize:
             layers['quant'] = original_model.quant  # Quantize the input
@@ -492,18 +498,19 @@ def create_static_feature_extractor(
 
     # if single_channel_data:
 
-        # https: // pytorch.org / tutorials / advanced / static_quantization_tutorial.html  # post-training-static-quantization
-        # backend = "fbgemm"
-        # new_model.qconfig = torch.quantization.get_default_qconfig(backend)
-        # torch.backends.quantized.engine = backend
-        # new_model.qconfig = torch.quantization.default_qconfig
-        # new_model = torch.quantization.prepare(new_model, inplace=False)
-        # new_model = torch.quantization.convert(new_model, inplace=False)
+    # https: // pytorch.org / tutorials / advanced / static_quantization_tutorial.html  # post-training-static-quantization
+    # backend = "fbgemm"
+    # new_model.qconfig = torch.quantization.get_default_qconfig(backend)
+    # torch.backends.quantized.engine = backend
+    # new_model.qconfig = torch.quantization.default_qconfig
+    # new_model = torch.quantization.prepare(new_model, inplace=False)
+    # new_model = torch.quantization.convert(new_model, inplace=False)
 
     return device, new_model.to(torch.device(device))
 
 
-def train_one_class_classifier(features, one_class_detector, train_logistic_regression, logistic_regression, scaler=None):
+def train_one_class_classifier(features, one_class_detector, train_logistic_regression, logistic_regression,
+                               scaler=None):
     xx = features.cpu().numpy()
     one_class_detector.partial_fit(xx)
     yy = one_class_detector.predict(xx)
@@ -532,7 +539,7 @@ preprocessor = transforms.Compose([
     # https://discuss.pytorch.org/t/grayscale-to-rgb-transform/18315/9
     # expand channels
     # transforms.Lambda(lambda x: x.repeat(3, 1, 1)) if len(x.shape) < 4 else NoneTransform(),
-    transforms.Lambda(lambda x: x.repeat(1, NO_OF_CHANNELS, 1, 1)), # repeat channel 1, 3 times
+    transforms.Lambda(lambda x: x.repeat(1, NO_OF_CHANNELS, 1, 1)),  # repeat channel 1, 3 times
     transforms.Resize(256),
     transforms.CenterCrop(224),
     # transforms.Pad(0, fill=3),
@@ -543,7 +550,7 @@ preprocessor = transforms.Compose([
 repeat_channel_1 = transforms.Compose([
     # https://discuss.pytorch.org/t/grayscale-to-rgb-transform/18315/9
     # expand channels
-    transforms.Lambda(lambda x: x.repeat(1, NO_OF_CHANNELS, 1, 1)), # repeat channel 1, 3 times
+    transforms.Lambda(lambda x: x.repeat(1, NO_OF_CHANNELS, 1, 1)),  # repeat channel 1, 3 times
 ])
 
 
@@ -720,7 +727,7 @@ class ANN:
         self.task_detector_type = task_detector_type
         self.current_loss = None
         self.train_nn_using_ex_static_f = train_nn_using_ex_static_f
-        self.cnn_type=cnn_type
+        self.cnn_type = cnn_type
 
         # status variables
         self.net = None
@@ -936,11 +943,14 @@ def net_train(net: ANN, x: np.ndarray, r, c, y: np.ndarray, true_task_id,
                   use_one_class_probas,
                   static_features=static_features)
 
+
 def update_loss_estimator(net: ANN, copy_old):
     net.update_loss_estimator(copy_old)
 
+
 def call_backprop(net: ANN):
     net.call_backprop()
+
 
 def reset_loss_and_bp_buffers(net: ANN):
     net.reset_loss_and_bp_buffers()
@@ -999,8 +1009,8 @@ class MultiMLP(nn.Module):
                  train_nn_using_ex_static_f=True,
                  use_1_channel_pretrained_for_1_channel=False,
                  use_quantized=False,
-                 max_frozen_pool_size = -1,
-                 instance_buffer_size_per_frozen_nw = 200,
+                 max_frozen_pool_size=-1,
+                 instance_buffer_size_per_frozen_nw=200,
                  cnn_type='SimpleCNN',
                  lr_decay=0.999995
                  ):
@@ -1061,7 +1071,6 @@ class MultiMLP(nn.Module):
         self.nb_preds = None
         self.buffer = None
 
-
         self.init_values()
 
     def init_values(self):
@@ -1069,9 +1078,12 @@ class MultiMLP(nn.Module):
 
         self.heading_printed = False
         self.nb_stats_file = sys.stdout if self.stats_file is sys.stdout else \
-            self.stats_file.replace('.csv', '_NB') if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES else self.stats_file.replace('.csv', '_HT') if self.task_detector_type == PREDICT_METHOD_HT else sys.stdout
+            self.stats_file.replace('.csv',
+                                    '_NB') if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES else self.stats_file.replace(
+                '.csv', '_HT') if self.task_detector_type == PREDICT_METHOD_HT else sys.stdout
         self.one_class_stats_file = sys.stdout if self.stats_file is sys.stdout else \
-            open(self.stats_file.replace('.csv', '_OC.csv'), 'w') if self.task_detector_type == PREDICT_METHOD_ONE_CLASS else sys.stdout
+            open(self.stats_file.replace('.csv', '_OC.csv'),
+                 'w') if self.task_detector_type == PREDICT_METHOD_ONE_CLASS else sys.stdout
         self.stats_file = sys.stdout if self.stats_file is sys.stdout else open(self.stats_file, 'w')
 
         self.create_nn_pool()
@@ -1135,12 +1147,13 @@ class MultiMLP(nn.Module):
                                   task_detector_type=self.task_detector_type,
                                   num_classes=self.num_classes,
                                   device=self.device,
-                                  train_nn_using_ex_static_f= self.train_nn_using_ex_static_f,
+                                  train_nn_using_ex_static_f=self.train_nn_using_ex_static_f,
                                   cnn_type=self.cnn_type)
                     self.train_nets.append(tmp_ann)
                     self.available_nn_id += 1
 
-    def get_majority_vote_from_nets(self, x, mini_batch_size, weights_for_each_network=None, add_best_training_nn_votes=False, predictor=None, static_features=None):
+    def get_majority_vote_from_nets(self, x, mini_batch_size, weights_for_each_network=None,
+                                    add_best_training_nn_votes=False, predictor=None, static_features=None):
         votes = None
 
         nn_list = self.frozen_nets
@@ -1164,7 +1177,8 @@ class MultiMLP(nn.Module):
 
             if weights_for_each_network is not None:
                 if votes is not None and nn_list[i].one_class_detector_fit_called:
-                    w, _ = self.get_best_matched_nn_index_and_weights_via_predictor(predictor, [nn_list[i]], static_features)
+                    w, _ = self.get_best_matched_nn_index_and_weights_via_predictor(predictor, [nn_list[i]],
+                                                                                    static_features)
                     v *= w[i]
 
             if votes is None:
@@ -1184,7 +1198,6 @@ class MultiMLP(nn.Module):
             else:
                 predictions = torch.cat((predictions, self.frozen_nets[i].net(xx).unsqueeze(0)), dim=0)
         return np.argmax(predictions.sum(axis=1).sum(axis=1), axis=0)
-
 
     def get_one_class_probas_for_nn(self, n, static_features=None):
         one_class_p = None
@@ -1250,7 +1263,7 @@ class MultiMLP(nn.Module):
                 if tmp_loss < min_loss:
                     idx = i
                     min_loss = tmp_loss
-            else: # highest loss
+            else:  # highest loss
                 if tmp_loss > max_loss:
                     idx = i
                     max_loss = tmp_loss
@@ -1274,7 +1287,7 @@ class MultiMLP(nn.Module):
         best_model.outputs = outputs
 
         self.frozen_net_module_paths.append({'abstract_model_file_name': abstract_model_file_name,
-                                     'nn_model_file_name': nn_model_file_name})
+                                             'nn_model_file_name': nn_model_file_name})
 
     def clear_frozen_pool(self):
         if len(self.frozen_nets) == 0:
@@ -1381,9 +1394,11 @@ class MultiMLP(nn.Module):
                     # get probas
                     if one_class_p is not None and one_class_p.item() > 0.0:
                         if self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last.get(task_id) is None:
-                            self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] = one_class_p.item()
+                            self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[
+                                task_id] = one_class_p.item()
                         else:
-                            self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[task_id] += one_class_p.item()
+                            self.frozen_nets[j].correctly_predicted_task_ids_probas_test_at_last[
+                                task_id] += one_class_p.item()
 
                     if not self.one_class_stats_header_printed:
                         print('{},{},{},{},{},{},{}'.format(
@@ -1427,12 +1442,12 @@ class MultiMLP(nn.Module):
         for i in range(len(nn_list)):
             if self.use_threads:
                 t.append(threading.Thread(target=net_train, args=(
-                nn_list[i], xx[i], r, c, y[i], true_task_id,
-                self.use_one_class_probas, static_features,)))
+                    nn_list[i], xx[i], r, c, y[i], true_task_id,
+                    self.use_one_class_probas, static_features,)))
             else:
                 nn_list[i].train_net(xx[i], y[i], c, r, true_task_id,
-                                             self.use_one_class_probas,
-                                             static_features=static_features)
+                                     self.use_one_class_probas,
+                                     static_features=static_features)
         if self.use_threads:
             for i in range(len(t)):
                 t[i].start()
@@ -1490,7 +1505,7 @@ class MultiMLP(nn.Module):
             if self.f_ex is None:
                 self.f_ex_device, self.f_ex = create_static_feature_extractor(
                     device=self.device,
-                    use_single_channel_fx = False,
+                    use_single_channel_fx=False,
                     quantize=False
                 )
             static_features = self.get_static_features(x, self.f_ex, fx_device=self.f_ex_device)
@@ -1532,10 +1547,13 @@ class MultiMLP(nn.Module):
 
                     if train_nn_list[best_matched_frozen_nn_idx].seen_task_ids_train.get(true_task_id) is not None:
                         self.correct_network_selected_count += r
-                        if train_nn_list[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test.get(true_task_id) is None:
-                            train_nn_list[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test[true_task_id] = r
+                        if train_nn_list[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test.get(
+                                true_task_id) is None:
+                            train_nn_list[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test[
+                                true_task_id] = r
                         else:
-                            train_nn_list[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test[true_task_id] += r
+                            train_nn_list[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test[
+                                true_task_id] += r
 
                 if self.use_weights_from_task_detectors and (
                         self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or
@@ -1548,11 +1566,11 @@ class MultiMLP(nn.Module):
                         x, r,
                         weights_for_each_network=weights_for_frozen_nns,
                         add_best_training_nn_votes=True if self.auto_detect_tasks and (
-                                    len(self.frozen_nets) == 0 or best_matched_frozen_nn_idx == len(
-                                self.frozen_nets)) else False,
+                                len(self.frozen_nets) == 0 or best_matched_frozen_nn_idx == len(
+                            self.frozen_nets)) else False,
                         predictor=self.task_detector_type,
                         static_features=static_features)
-                else: # No weights from predictors
+                else:  # No weights from predictors
                     final_votes = \
                         self.frozen_nets[best_matched_frozen_nn_idx].net(x)
 
@@ -1589,23 +1607,23 @@ class MultiMLP(nn.Module):
         xx = []
         yy = []
         frozen_pool_full = False
-        if self.max_frozen_pool_size > 0 and  len(self.frozen_net_module_paths) >= self.max_frozen_pool_size:
+        if self.max_frozen_pool_size > 0 and len(self.frozen_net_module_paths) >= self.max_frozen_pool_size:
             nw_id = self.get_nb_or_ht_predicted_nn_index(static_features)
             frozen_pool_full = True
-        else: # max_frozen_pool_size is infinite or frozen pool is not fully filled
+        else:  # max_frozen_pool_size is infinite or frozen pool is not fully filled
             nw_id = self.detected_task_id
 
         if self.buffer is None:
             self.buffer = Buffer(self.instance_buffer_size_per_frozen_nw, x.device)
         if not self.buffer.is_empty():
             buf_inputs, buf_labels, buf_indexes = self.buffer.get_data(
-                r, # batch size
-                transform=augmentor if random.randint(0,3) == 1 else None,
+                r,  # batch size
+                transform=augmentor if random.randint(0, 3) == 1 else None,
                 return_indexes=True)
             xxx = torch.cat((x, buf_inputs))
             yyy = torch.cat((y, buf_labels))
         else:
-            xxx = augmentor(x) if random.randint(0,3) == 1 else x
+            xxx = augmentor(x) if random.randint(0, 3) == 1 else x
             yyy = y
 
         self.load_frozen_pool()
@@ -1623,11 +1641,10 @@ class MultiMLP(nn.Module):
                 xx.append(xxx)
                 yy.append(yyy)
 
-
-        #frozen_indexes = []
+        # frozen_indexes = []
         # random train frozen
         if len(frozen_indexes) > 0:
-            frozen_indexes = [sample(frozen_indexes, 1)[0]] # random train frozen
+            frozen_indexes = [sample(frozen_indexes, 1)[0]]  # random train frozen
             for i in frozen_indexes:
                 self.frozen_nets[i].lr_decay = self.lr_decay
                 train_nn_list.append(self.frozen_nets[i])
@@ -1644,8 +1661,6 @@ class MultiMLP(nn.Module):
                 if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_HT:
                     self.nb_train(static_features, nw_id)
 
-
-
         self.forward_pass(train_nn_list,
                           xx=xx,
                           r=r,
@@ -1654,8 +1669,9 @@ class MultiMLP(nn.Module):
                           true_task_id=true_task_id,
                           static_features=static_features)
 
-        nn_with_lowest_loss = self.get_nn_index_with_lowest_or_highest_loss(train_nn_list, use_estimated_loss= True)
-        nn_with_highest_loss = self.get_nn_index_with_lowest_or_highest_loss(train_nn_list, use_estimated_loss=False, lowest_loss=False)
+        nn_with_lowest_loss = self.get_nn_index_with_lowest_or_highest_loss(train_nn_list, use_estimated_loss=True)
+        nn_with_highest_loss = self.get_nn_index_with_lowest_or_highest_loss(train_nn_list, use_estimated_loss=False,
+                                                                             lowest_loss=False)
         # outputs = deepcopy(self.train_nets[nn_with_lowest_loss].outputs.detach())
 
         self.update_loss_estimator(train_nn_list)
@@ -1708,7 +1724,8 @@ class MultiMLP(nn.Module):
     #     self.detected_task_id += 1
 
     def add_to_frozen_pool(self):
-        if self.max_frozen_pool_size == -1 or (self.max_frozen_pool_size > 0 and len(self.frozen_net_module_paths) < self.max_frozen_pool_size ):
+        if self.max_frozen_pool_size == -1 or (
+                self.max_frozen_pool_size > 0 and len(self.frozen_net_module_paths) < self.max_frozen_pool_size):
             self.add_nn_with_lowest_loss_to_frozen_list()
             self.reset_one_class_detectors_and_loss_estimators_seen_task_ids()
             # self.reset()
