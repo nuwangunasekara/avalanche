@@ -1490,7 +1490,8 @@ class MultiMLP(nn.Module):
             if self.f_ex is None:
                 self.f_ex_device, self.f_ex = create_static_feature_extractor(
                     device=self.device,
-                    use_single_channel_fx = True if x.shape[1] == 1 and self.use_1_channel_pretrained_for_1_channel else False
+                    use_single_channel_fx = False,
+                    quantize=False
                 )
             static_features = self.get_static_features(x, self.f_ex, fx_device=self.f_ex_device)
 
@@ -1535,11 +1536,6 @@ class MultiMLP(nn.Module):
                             train_nn_list[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test[true_task_id] = r
                         else:
                             train_nn_list[best_matched_frozen_nn_idx].correctly_predicted_task_ids_test[true_task_id] += r
-                else:
-                    if len(self.frozen_nets) >= 0:
-                        print('Index error for best_matched_frozen_nn_index ({}) frozen_nets size ({}) '.format(best_matched_frozen_nn_idx, len(self.frozen_nets)))
-                    else:
-                        print('No frozen nets. may use best training net for prediction')
 
                 if self.use_weights_from_task_detectors and (
                         self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or
@@ -1719,6 +1715,7 @@ class MultiMLP(nn.Module):
 
     def print_stats_hader(self):
         print('Training pool size {}'.format(len(self.train_nets)))
+        print('Frozen pool size {}'.format(len(self.frozen_net_module_paths)))
         if not self.heading_printed:
             print('training_exp,'
                   'dumped_at,'
