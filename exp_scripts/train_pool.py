@@ -257,7 +257,7 @@ def main(args):
             max_frozen_pool_size=args.max_frozen_pool_size,
             instance_buffer_size_per_frozen_nw=args.mem_buff_size,
             cnn_type=args.module,
-            lr_decay=0.999995
+            lr_decay=1.0
             )
 
         # x_shape = (x_shape[1], x_shape[2], x_shape[0])

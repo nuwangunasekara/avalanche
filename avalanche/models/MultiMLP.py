@@ -1618,12 +1618,12 @@ class MultiMLP(nn.Module):
         if not self.buffer.is_empty():
             buf_inputs, buf_labels, buf_indexes = self.buffer.get_data(
                 r,  # batch size
-                transform=augmentor if random.randint(0, 3) == 1 else None,
+                transform=None if random.randint(0, 3) == 1 else None,
                 return_indexes=True)
             xxx = torch.cat((x, buf_inputs))
             yyy = torch.cat((y, buf_labels))
         else:
-            xxx = augmentor(x) if random.randint(0, 3) == 1 else x
+            xxx = x if random.randint(0, 3) == 1 else x
             yyy = y
 
         self.load_frozen_pool()
@@ -1641,12 +1641,12 @@ class MultiMLP(nn.Module):
                 xx.append(xxx)
                 yy.append(yyy)
 
-        # frozen_indexes = []
+        frozen_indexes = []
         # random train frozen
         if len(frozen_indexes) > 0:
-            frozen_indexes = [sample(frozen_indexes, 1)[0]]  # random train frozen
+            # frozen_indexes = [sample(frozen_indexes, 1)[0]]  # random train frozen
             for i in frozen_indexes:
-                self.frozen_nets[i].lr_decay = self.lr_decay
+                self.frozen_nets[i].lr_decay = 1.0
                 train_nn_list.append(self.frozen_nets[i])
                 xx.append(xxx)
                 yy.append(yyy)
