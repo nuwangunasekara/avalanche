@@ -257,7 +257,7 @@ def main(args):
             max_frozen_pool_size=args.max_frozen_pool_size,
             instance_buffer_size_per_frozen_nw=args.mem_buff_size,
             cnn_type=args.module,
-            lr_decay=1.0
+            lr_decay=args.lr_decay,
             )
 
         # x_shape = (x_shape[1], x_shape[2], x_shape[0])
@@ -461,6 +461,9 @@ if __name__ == '__main__':
 
     parser.add_argument('--adwin_delta_in_log10', type=float, default=-3.0,
                         help='adwin_delta_in_log10')
+
+    parser.add_argument('--lr_decay', type=float, default=1.0,
+                        help='lr_decay')
 
     parser.add_argument('--max_frozen_pool_size', type=int, default=-1,
                         help='max_frozen_pool_size. Infinite if -1.')
