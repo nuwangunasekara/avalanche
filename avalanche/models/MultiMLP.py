@@ -1603,7 +1603,8 @@ class MultiMLP(nn.Module):
             nw_id, nw_id_confidence = self.get_nb_or_ht_predicted_nn_index(static_features)
             frozen_pool_full = True
         else:  # max_frozen_pool_size is infinite or frozen pool is not fully filled
-            detected_task_id, detected_task_id_confidence = self.get_nb_or_ht_predicted_nn_index(static_features)
+            if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_HT:
+                detected_task_id, detected_task_id_confidence = self.get_nb_or_ht_predicted_nn_index(static_features)
             nw_id = self.detected_task_id
 
         if self.buffer is None:
