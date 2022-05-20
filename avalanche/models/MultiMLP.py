@@ -79,8 +79,10 @@ augmentor = transforms.Compose([
     transforms.RandomHorizontalFlip()])
 
 
-def apply_decay(decay, lr, optimizer, num_iter):
-    learn_rate = lr * (decay ** num_iter)
+def lr_decay_or_increase(decay, lr, optimizer, num_iter, alpha = 1.0, loss_decreasing = False):
+    factor = (decay ** num_iter)
+    factor = factor if loss_decreasing else factor + alpha
+    learn_rate = lr * factor
     for param_group in optimizer.param_groups:
         param_group['lr'] = learn_rate
 
@@ -740,7 +742,6 @@ class ANN:
         self.chosen_for_test = 0
         self.chosen_after_train = 0
         self.loss_estimator: BaseDriftDetector = None
-        self.old_loss_estimator: BaseDriftDetector = None
         self.accumulated_loss = 0
         self.last_loss = 0
         self.one_class_detector = None
@@ -751,6 +752,8 @@ class ANN:
         # self.input_dimensions = 0
         self.x_shape = None
         self.task_detected = False
+        self.loss_decreasing = False
+        self.samples_seen_since_last_drift = 0
         self.seen_task_ids_train = {}
         self.correctly_predicted_task_ids_test = {}
         self.correctly_predicted_task_ids_test_at_last = {}
@@ -778,6 +781,8 @@ class ANN:
         # self.input_dimensions = 0
         self.x_shape = None
         self.task_detected = False
+        self.loss_decreasing = False
+        self.samples_seen_since_last_drift = 0
         self.seen_task_ids_train = {}
         self.correctly_predicted_task_ids_test = {}
         self.correctly_predicted_task_ids_test_at_last = {}
@@ -874,26 +879,32 @@ class ANN:
         self.loss_scores = self.loss_f(outputs, y, reduction='none')
         self.loss = self.loss_scores.mean()
         self.current_loss = self.loss.item()
+        self.update_loss_estimator()
         self.outputs = outputs.detach()
 
         return outputs
 
-    def update_loss_estimator(self, copy_old=False):
-        if copy_old:
-            self.old_loss_estimator = deepcopy(self.loss_estimator)
+    def update_loss_estimator(self):
         previous_estimated_loss = self.loss_estimator.estimation
         self.loss_estimator.add_element(self.current_loss)
         self.accumulated_loss += self.current_loss
-
-        self.task_detected = False
-        if self.loss_estimator.detected_change() and self.loss_estimator.estimation > previous_estimated_loss:
-            print('NEW TASK detected by {}'.format(self.model_name))
-            self.task_detected = True
+        if self.loss_estimator.detected_change():
+            self.samples_seen_since_last_drift = 0
+            if self.loss_estimator.estimation > previous_estimated_loss:
+                print('NEW TASK detected by {}'.format(self.model_name))
+                self.task_detected = True
+                self.loss_decreasing = False
+            elif self.loss_estimator.estimation < previous_estimated_loss:
+                print('Estd LOSS DECREASING in {}'.format(self.model_name))
+                self.loss_decreasing = True
+                self.task_detected = False
         else:
-            self.old_loss_estimator = None
+            self.samples_seen_since_last_drift += 1
 
     def call_backprop(self):
-        apply_decay(self.lr_decay, self.learning_rate, self.optimizer, self.samples_seen_at_train)
+        lr_decay_or_increase(self.lr_decay, self.learning_rate, self.optimizer, self.samples_seen_since_last_drift,
+                             alpha=1.0,
+                             loss_decreasing=self.loss_decreasing)
         if self.loss.item() > self.back_prop_skip_loss_threshold:
             self.loss.backward()
             self.optimizer.step()  # Does the update
@@ -903,8 +914,6 @@ class ANN:
         self.optimizer.zero_grad()
         self.loss = None
         self.loss_scores = None
-        # self.outputs = None
-        self.old_loss_estimator = None
 
     def get_votes(self, x, static_features=None):
         if self.train_nn_using_ex_static_f and static_features is not None:
@@ -944,10 +953,6 @@ def net_train(net: ANN, x: np.ndarray, r, c, y: np.ndarray, true_task_id,
                   static_features=static_features)
 
 
-def update_loss_estimator(net: ANN, copy_old):
-    net.update_loss_estimator(copy_old)
-
-
 def call_backprop(net: ANN):
     net.call_backprop()
 
@@ -958,7 +963,6 @@ def reset_loss_and_bp_buffers(net: ANN):
 
 def save_model(best_model: ANN, abstract_model_file_name, nn_model_file_name, preserve_net=False):
     # set unwanted attributes to None
-
     net = best_model.net
     best_model.net = None
 
@@ -1012,7 +1016,7 @@ class MultiMLP(nn.Module):
                  max_frozen_pool_size=-1,
                  instance_buffer_size_per_frozen_nw=200,
                  cnn_type='SimpleCNN',
-                 lr_decay=0.999995
+                 lr_decay=1.0
                  ):
         super().__init__()
 
@@ -1216,7 +1220,9 @@ class MultiMLP(nn.Module):
 
     def get_nb_or_ht_predicted_nn_index(self, static_features):
         predictions = self.nb_or_ht_predict(static_features)
-        return np.argmax(predictions.mean(axis=0), axis=0).item()
+        index = np.argmax(predictions.mean(axis=0), axis=0).item()
+        confidence = predictions.mean(axis=0)[index]
+        return index, confidence
 
     def get_best_matched_nn_index_and_weights_via_predictor(self, predictor, net_list, static_features=None):
         if predictor == PREDICT_METHOD_ONE_CLASS:
@@ -1293,7 +1299,7 @@ class MultiMLP(nn.Module):
         if len(self.frozen_nets) == 0:
             return
         try:
-            for i in range(len(self.frozen_net_module_paths)):
+            for i in range(len(self.frozen_nets)):
                 save_model(self.frozen_nets[i],
                            self.frozen_net_module_paths[i]['abstract_model_file_name'],
                            self.frozen_net_module_paths[i]['nn_model_file_name'])
@@ -1454,20 +1460,6 @@ class MultiMLP(nn.Module):
             for i in range(len(t)):
                 t[i].join()
 
-    def update_loss_estimator(self, nn_list):
-        t = []
-        for i in range(len(nn_list)):
-            if self.use_threads:
-                copy_old = False
-                t.append(threading.Thread(target=update_loss_estimator, args=(nn_list[i], copy_old,)))
-            else:
-                nn_list[i].update_loss_estimator(copy_old=False)
-        if self.use_threads:
-            for i in range(len(t)):
-                t[i].start()
-            for i in range(len(t)):
-                t[i].join()
-
     def call_backprop(self, nn_list):
         t = []
         for i in range(len(nn_list)):
@@ -1506,7 +1498,7 @@ class MultiMLP(nn.Module):
                 self.f_ex_device, self.f_ex = create_static_feature_extractor(
                     device=self.device,
                     use_single_channel_fx=False,
-                    quantize=False
+                    quantize=True
                 )
             static_features = self.get_static_features(x, self.f_ex, fx_device=self.f_ex_device)
 
@@ -1608,9 +1600,10 @@ class MultiMLP(nn.Module):
         yy = []
         frozen_pool_full = False
         if self.max_frozen_pool_size > 0 and len(self.frozen_net_module_paths) >= self.max_frozen_pool_size:
-            nw_id = self.get_nb_or_ht_predicted_nn_index(static_features)
+            nw_id, nw_id_confidence = self.get_nb_or_ht_predicted_nn_index(static_features)
             frozen_pool_full = True
         else:  # max_frozen_pool_size is infinite or frozen pool is not fully filled
+            detected_task_id, detected_task_id_confidence = self.get_nb_or_ht_predicted_nn_index(static_features)
             nw_id = self.detected_task_id
 
         if self.buffer is None:
@@ -1629,14 +1622,12 @@ class MultiMLP(nn.Module):
         self.load_frozen_pool()
         frozen_indexes = [i for i in range(len(self.frozen_nets))]
         if frozen_pool_full:
-            self.frozen_nets[nw_id].lr_decay = self.lr_decay
             train_nn_list.append(self.frozen_nets[nw_id])
             frozen_indexes.remove(nw_id)
             xx.append(xxx)
             yy.append(yyy)
         else:
             for i in range(len(self.train_nets)):
-                self.train_nets[i].lr_decay = 1.0
                 train_nn_list.append(self.train_nets[i])
                 xx.append(xxx)
                 yy.append(yyy)
@@ -1644,12 +1635,13 @@ class MultiMLP(nn.Module):
         frozen_indexes = []
         # random train frozen
         if len(frozen_indexes) > 0:
-            # frozen_indexes = [sample(frozen_indexes, 1)[0]]  # random train frozen
-            for i in frozen_indexes:
-                self.frozen_nets[i].lr_decay = 1.0
-                train_nn_list.append(self.frozen_nets[i])
-                xx.append(xxx)
-                yy.append(yyy)
+            if detected_task_id < len(frozen_indexes) and detected_task_id_confidence > 0.5:
+                # frozen_indexes = [sample(frozen_indexes, 1)[0]]  # random train frozen
+                frozen_indexes = [detected_task_id]
+                for i in frozen_indexes:
+                    train_nn_list.append(self.frozen_nets[i])
+                    xx.append(xxx)
+                    yy.append(yyy)
 
         if self.use_static_f_ex:
             static_features = self.get_static_features(xxx, self.f_ex, fx_device=self.f_ex_device)
@@ -1672,9 +1664,6 @@ class MultiMLP(nn.Module):
         nn_with_lowest_loss = self.get_nn_index_with_lowest_or_highest_loss(train_nn_list, use_estimated_loss=True)
         nn_with_highest_loss = self.get_nn_index_with_lowest_or_highest_loss(train_nn_list, use_estimated_loss=False,
                                                                              lowest_loss=False)
-        # outputs = deepcopy(self.train_nets[nn_with_lowest_loss].outputs.detach())
-
-        self.update_loss_estimator(train_nn_list)
         self.call_backprop(train_nn_list)
         loss_scores = train_nn_list[nn_with_highest_loss].loss_scores
         if not self.buffer.is_empty():
@@ -1687,10 +1676,9 @@ class MultiMLP(nn.Module):
 
         if self.auto_detect_tasks:
             task_detected = False
-            for m in self.train_nets:
-                if m.task_detected:
+            for m in train_nn_list:
+                if m.task_detected and m.samples_seen_since_last_drift == 0:
                     task_detected = True
-                    m.task_detected = False
             if task_detected:
                 self.samples_seen_for_train_after_dd = 0
                 self.add_to_frozen_pool()
