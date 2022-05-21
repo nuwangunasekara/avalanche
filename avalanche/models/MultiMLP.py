@@ -86,6 +86,14 @@ def lr_decay_or_increase(decay, lr, optimizer, num_iter, alpha = 1.0, loss_decre
     for param_group in optimizer.param_groups:
         param_group['lr'] = learn_rate
 
+def lr_decay_or_increase_2(decay, lr, optimizer, loss_at_start_of_drift, current_loss, alpha = 1.0, loss_decreasing = False):
+    factor = current_loss/loss_at_start_of_drift
+    factor = (decay ** factor)
+    factor = factor if loss_decreasing else factor + alpha
+    learn_rate = lr * factor
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = learn_rate
+
 
 def reservoir(num_seen_examples: int, buffer_size: int) -> int:
     """
@@ -743,7 +751,6 @@ class ANN:
         self.chosen_after_train = 0
         self.loss_estimator: BaseDriftDetector = None
         self.accumulated_loss = 0
-        self.last_loss = 0
         self.one_class_detector = None
         self.one_class_detector_fit_called = False
         self.scaler = None
@@ -753,6 +760,7 @@ class ANN:
         self.x_shape = None
         self.task_detected = False
         self.loss_decreasing = False
+        self.loss_at_start_of_drift = None
         self.samples_seen_since_last_drift = 0
         self.seen_task_ids_train = {}
         self.correctly_predicted_task_ids_test = {}
@@ -782,6 +790,7 @@ class ANN:
         self.x_shape = None
         self.task_detected = False
         self.loss_decreasing = False
+        self.loss_at_start_of_drift = None
         self.samples_seen_since_last_drift = 0
         self.seen_task_ids_train = {}
         self.correctly_predicted_task_ids_test = {}
@@ -888,7 +897,10 @@ class ANN:
         previous_estimated_loss = self.loss_estimator.estimation
         self.loss_estimator.add_element(self.current_loss)
         self.accumulated_loss += self.current_loss
+        if self.loss_at_start_of_drift is None:
+            self.loss_at_start_of_drift = self.current_loss
         if self.loss_estimator.detected_change():
+            self.loss_at_start_of_drift = self.current_loss
             self.samples_seen_since_last_drift = 0
             if self.loss_estimator.estimation > previous_estimated_loss:
                 print('NEW TASK detected by {}'.format(self.model_name))
@@ -905,6 +917,11 @@ class ANN:
         lr_decay_or_increase(self.lr_decay, self.learning_rate, self.optimizer, self.samples_seen_since_last_drift,
                              alpha=1.0,
                              loss_decreasing=self.loss_decreasing)
+        # lr_decay_or_increase_2(self.lr_decay, self.learning_rate, self.optimizer,
+        #                        self.loss_at_start_of_drift,
+        #                        self.current_loss,
+        #                        alpha=1.0,
+        #                        loss_decreasing=self.loss_decreasing)
         if self.loss.item() > self.back_prop_skip_loss_threshold:
             self.loss.backward()
             self.optimizer.step()  # Does the update
