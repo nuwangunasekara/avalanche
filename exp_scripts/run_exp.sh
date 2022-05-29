@@ -54,10 +54,6 @@ tp_use_1_channel_pretrained_for_1_channel='no-use_1c_pt'
 #tp_use_quantized='no-use_Q'
 tp_use_quantized='use_Q'
 
-# dynamic learning rate
-#tp_dl='no-dl'
-tp_dl='dl'
-
 tp_skip_back_prop_threshold='0.0'
 #tp_skip_back_prop_threshold='0.3'
 
@@ -66,8 +62,11 @@ tp_adwin_delta_in_log10='-3.0'
 tp_max_frozen_pool_size='-1'
 per_task_mem_buff_size='0'
 
-tp_lr_decay='1.0'
-#tp_lr_decay='0.999995'
+# dynamic learning rate
+#tp_dl='no-dl'
+tp_dl='dl'
+#tp_lr_decay='1.0'
+tp_lr_decay='0.999995'
 
 model='SimpleCNN'
 #model='CNN4'
