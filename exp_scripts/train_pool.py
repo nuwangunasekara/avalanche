@@ -258,6 +258,7 @@ def main(args):
             instance_buffer_size_per_frozen_nw=args.mem_buff_size,
             cnn_type=args.module,
             lr_decay=args.lr_decay,
+            dl=args.dl
             )
 
         # x_shape = (x_shape[1], x_shape[2], x_shape[0])
@@ -467,6 +468,12 @@ if __name__ == '__main__':
 
     parser.add_argument('--max_frozen_pool_size', type=int, default=-1,
                         help='max_frozen_pool_size. Infinite if -1.')
+
+    parser.add_argument('--dl', dest='dl',
+                        action='store_true')
+    parser.add_argument('--no-dl', dest='dl',
+                        action='store_false')
+    parser.set_defaults(use_quantized=True)
 
 
     args = parser.parse_args()

@@ -720,7 +720,8 @@ class ANN:
                  task_detector_type=PREDICT_METHOD_ONE_CLASS,
                  back_prop_skip_loss_threshold=0.6,
                  train_nn_using_ex_static_f=False,
-                 cnn_type='SimpleCNN'):
+                 cnn_type='SimpleCNN',
+                 dl=True):
         # configuration variables (which has the same name as init parameters)
         self.id = id
         self.frozen_id = None
@@ -738,6 +739,7 @@ class ANN:
         self.current_loss = None
         self.train_nn_using_ex_static_f = train_nn_using_ex_static_f
         self.cnn_type = cnn_type
+        self.dl = dl
 
         # status variables
         self.net = None
@@ -914,14 +916,15 @@ class ANN:
             self.samples_seen_since_last_drift += 1
 
     def call_backprop(self):
-        lr_decay_or_increase(self.lr_decay, self.learning_rate, self.optimizer, self.samples_seen_since_last_drift,
-                             alpha=1.0,
-                             loss_decreasing=self.loss_decreasing)
-        # lr_decay_or_increase_2(self.lr_decay, self.learning_rate, self.optimizer,
-        #                        self.loss_at_start_of_drift,
-        #                        self.current_loss,
-        #                        alpha=1.0,
-        #                        loss_decreasing=self.loss_decreasing)
+        if self.dl:
+            lr_decay_or_increase(self.lr_decay, self.learning_rate, self.optimizer, self.samples_seen_since_last_drift,
+                                 alpha=1.0,
+                                 loss_decreasing=self.loss_decreasing)
+            # lr_decay_or_increase_2(self.lr_decay, self.learning_rate, self.optimizer,
+            #                        self.loss_at_start_of_drift,
+            #                        self.current_loss,
+            #                        alpha=1.0,
+            #                        loss_decreasing=self.loss_decreasing)
         if self.loss.item() > self.back_prop_skip_loss_threshold:
             self.loss.backward()
             self.optimizer.step()  # Does the update
@@ -1033,7 +1036,8 @@ class MultiMLP(nn.Module):
                  max_frozen_pool_size=-1,
                  instance_buffer_size_per_frozen_nw=200,
                  cnn_type='SimpleCNN',
-                 lr_decay=1.0
+                 lr_decay=1.0,
+                 dl=True
                  ):
         super().__init__()
 
@@ -1066,6 +1070,7 @@ class MultiMLP(nn.Module):
         self.max_frozen_pool_size = max_frozen_pool_size
         self.instance_buffer_size_per_frozen_nw = instance_buffer_size_per_frozen_nw
         self.cnn_type = cnn_type
+        self.dl = dl
 
         # status variables
         self.train_nets = []  # type: List[ANN]
@@ -1169,7 +1174,8 @@ class MultiMLP(nn.Module):
                                   num_classes=self.num_classes,
                                   device=self.device,
                                   train_nn_using_ex_static_f=self.train_nn_using_ex_static_f,
-                                  cnn_type=self.cnn_type)
+                                  cnn_type=self.cnn_type,
+                                  dl=self.dl)
                     self.train_nets.append(tmp_ann)
                     self.available_nn_id += 1
 
@@ -1515,7 +1521,7 @@ class MultiMLP(nn.Module):
                 self.f_ex_device, self.f_ex = create_static_feature_extractor(
                     device=self.device,
                     use_single_channel_fx=False,
-                    quantize=True
+                    quantize=self.use_quantized
                 )
             static_features = self.get_static_features(x, self.f_ex, fx_device=self.f_ex_device)
 

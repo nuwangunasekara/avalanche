@@ -51,8 +51,12 @@ tp_train_nn_using_ex_static_f='no-t_nn_with_ex_st_f'
 tp_use_1_channel_pretrained_for_1_channel='no-use_1c_pt'
 #tp_use_1_channel_pretrained_for_1_channel='use_1c_pt'
 
-tp_use_quantized='no-use_Q'
-#tp_use_quantized='use_Q'
+#tp_use_quantized='no-use_Q'
+tp_use_quantized='use_Q'
+
+# dynamic learning rate
+#tp_dl='no-dl'
+tp_dl='dl'
 
 tp_skip_back_prop_threshold='0.0'
 #tp_skip_back_prop_threshold='0.3'
@@ -200,8 +204,14 @@ do
             tp_use_quantized_cmd='--no-use_quantized'
           fi
 
-          command_args="${command_args} --module ${model} --pool_type ${tp_pool_type} --skip_back_prop_threshold ${tp_skip_back_prop_threshold} --task_detector_type ${tp_p_method} ${tp_reset_tp_cmd} ${tp_use_one_class_probas_cmd} ${tp_use_weights_from_task_detectors_cmd} ${tp_auto_detect_tasks_cmd} ${tp_use_static_f_ex_cmd} ${tp_train_nn_using_ex_static_f_cmd} ${tp_use_1_channel_pretrained_for_1_channel_cmd} ${tp_use_quantized_cmd} --adwin_delta_in_log10 ${tp_adwin_delta_in_log10} --max_frozen_pool_size ${tp_max_frozen_pool_size} --mem_buff_size ${per_task_mem_buff_size} --lr_decay ${tp_lr_decay}"
-          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_predict_method}_${tp_reset_tp}_${tp_use_one_class_probas}_${tp_use_weights_from_task_detectors}_${tp_auto_detect_tasks}_${tp_use_static_f_ex}_${tp_train_nn_using_ex_static_f}_${tp_use_1_channel_pretrained_for_1_channel}_${tp_use_quantized}_bp${tp_skip_back_prop_threshold}_A${tp_adwin_delta_in_log10}_F${tp_max_frozen_pool_size}_B${per_task_mem_buff_size}_LrD${tp_lr_decay}_${model}"
+          if [ "${tp_dl}" == "dl" ]; then
+            tp_dl_cmd='--dl'
+          else
+            tp_dl_cmd='--no-dl'
+          fi
+
+          command_args="${command_args} --module ${model} --pool_type ${tp_pool_type} --skip_back_prop_threshold ${tp_skip_back_prop_threshold} --task_detector_type ${tp_p_method} ${tp_reset_tp_cmd} ${tp_use_one_class_probas_cmd} ${tp_use_weights_from_task_detectors_cmd} ${tp_auto_detect_tasks_cmd} ${tp_use_static_f_ex_cmd} ${tp_train_nn_using_ex_static_f_cmd} ${tp_use_1_channel_pretrained_for_1_channel_cmd} ${tp_use_quantized_cmd} --adwin_delta_in_log10 ${tp_adwin_delta_in_log10} --max_frozen_pool_size ${tp_max_frozen_pool_size} --mem_buff_size ${per_task_mem_buff_size} --lr_decay ${tp_lr_decay} ${tp_dl_cmd}"
+          log_file_name="${log_file_name}_TP_${tp_pool_type}_${tp_predict_method}_${tp_reset_tp}_${tp_use_one_class_probas}_${tp_use_weights_from_task_detectors}_${tp_auto_detect_tasks}_${tp_use_static_f_ex}_${tp_train_nn_using_ex_static_f}_${tp_use_1_channel_pretrained_for_1_channel}_${tp_use_quantized}_bp${tp_skip_back_prop_threshold}_A${tp_adwin_delta_in_log10}_F${tp_max_frozen_pool_size}_B${per_task_mem_buff_size}_LrD${tp_lr_decay}_${model}_${tp_dl}"
           ;;
         *)
           command_args=""
