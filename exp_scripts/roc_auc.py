@@ -9,12 +9,19 @@ from numpy import interp
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-r", "--resultsDir", type=str, help="Results directory", default='/Users/ng98/Desktop/results/results/reset_oneclass_reset_loss_estd_include_best_tr_seed_0_no_task_detect_WITH_ACCUMULATED_STATIC_FEATURES_NB/logs/exp_logs')
+parser.add_argument("-r", "--resultsDir", type=str, help="Results directory", default='/Users/ng98/Desktop/results/results/1CNN/ForDS2022/HT_wv/others_CORe50_2/Pool1_FInf_B0_SimpleCNN_Q_HT_2/logs/exp_logs')
 
-parser.add_argument('--task_predictor', type=str, default='NB',
+parser.add_argument('--tp', type=str, default='HT',
                     choices=['NB', 'HT', 'OC'],
                     help='Task predictor to plot AUC for: '
                          'NB, HT, OC')
+
+parser.add_argument('--plt_per_task', dest='plt_per_task',
+                    action='store_true')
+parser.add_argument('--no-plt_per_task', dest='plt_per_task',
+                    action='store_false')
+parser.set_defaults(plt_per_task=True)
+
 args = parser.parse_args()
 
 
@@ -48,10 +55,25 @@ def auc_for_multi_class(y_test, y_prob):
     return macro_roc_auc_ovo, weighted_roc_auc_ovo, macro_roc_auc_ovr, weighted_roc_auc_ovr
 
 
-def read_file_plot_roc_cur_auc(file_name, ax, title_prefix, numpy_file=False):
+def read_file_plot_roc_cur_auc(file_name, ax, title_prefix, one_class=False):
     print(title_prefix)
 
-    if numpy_file:
+    if one_class:
+        df = pd.read_csv(file_name)
+
+        y = df['is_nw_trained_on_task_id']
+        decision_function = df['one_class_df']
+        roc_auc = roc_auc_score(y, decision_function)
+        print(roc_auc)
+
+        # p = 1/(1 + np.exp(-decision_function))
+        #
+        # fper, tper, thresholds = roc_curve(y, p)
+        # plot_roc_cur(fper, tper)
+
+        fper, tper, thresholds = roc_curve(y, decision_function)
+        plot_roc_cur(ax, fper, tper, roc_auc, title_prefix)
+    else:  # not one class
         r = np.load(file_name)
         y = r[:, -1]
         p = r[:, 0:-1]
@@ -66,7 +88,7 @@ def read_file_plot_roc_cur_auc(file_name, ax, title_prefix, numpy_file=False):
 
         macro_roc_auc_ovo, weighted_roc_auc_ovo, macro_roc_auc_ovr, weighted_roc_auc_ovr = auc_for_multi_class(y, p)
 
-        # Compute ROC curve and ROC area for each class
+        # Compute ROC curve and ROC area for each class(task)
         y = pd.get_dummies(y).to_numpy()
         fpr = dict()
         tpr = dict()
@@ -97,6 +119,7 @@ def read_file_plot_roc_cur_auc(file_name, ax, title_prefix, numpy_file=False):
         # Plot all ROC curves
         lw = 2
         # ax.figure()
+        # plot avg ROC
         ax.plot(
             fpr["micro"],
             tpr["micro"],
@@ -105,7 +128,6 @@ def read_file_plot_roc_cur_auc(file_name, ax, title_prefix, numpy_file=False):
             # linestyle=":",
             # linewidth=4,
         )
-
         # ax.plot(
         #     fpr["macro"],
         #     tpr["macro"],
@@ -114,16 +136,18 @@ def read_file_plot_roc_cur_auc(file_name, ax, title_prefix, numpy_file=False):
         #     linestyle=":",
         #     linewidth=4,
         # )
-        # print ROC for each one class task detector
-        colors = cycle(["aqua", "darkorange", "cornflowerblue", "red", "green", "blue", "pink", "yellow", "grey", "darkgreen", "brown"])
-        for i, color in zip(range(n_classes), colors):
-            ax.plot(
-                fpr[i],
-                tpr[i],
-                color=color,
-                lw=lw,
-                label="ROC curve of task {0} (area = {1:0.2f})".format(i, roc_auc[i]),
-            )
+
+        if args.plt_per_task:
+            # plot ROC for each task
+            colors = cycle(["aqua", "darkorange", "cornflowerblue", "red", "green", "blue", "pink", "yellow", "grey", "darkgreen", "brown"])
+            for i, color in zip(range(n_classes), colors):
+                ax.plot(
+                    fpr[i],
+                    tpr[i],
+                    color=color,
+                    lw=lw,
+                    label="ROC curve of task {0} (area = {1:0.2f})".format(i, roc_auc[i]),
+                )
 
         ax.plot([0, 1], [0, 1], "k--", lw=lw)
         ax.set_xlim([0.0, 1.0])
@@ -133,25 +157,10 @@ def read_file_plot_roc_cur_auc(file_name, ax, title_prefix, numpy_file=False):
         ax.set_title('{}'.format(title_prefix))
         # ax.set_title("Some extension of Receiver operating characteristic to multiclass")
         ax.legend(loc="lower right")
-    else:
-        df = pd.read_csv(file_name)
-
-        y = df['is_nw_trained_on_task_id']
-        decision_function = df['one_class_df']
-        roc_auc = roc_auc_score(y, decision_function)
-        print(roc_auc)
-
-        # p = 1/(1 + np.exp(-decision_function))
-        #
-        # fper, tper, thresholds = roc_curve(y, p)
-        # plot_roc_cur(fper, tper)
-
-        fper, tper, thresholds = roc_curve(y, decision_function)
-        plot_roc_cur(ax, fper, tper, roc_auc, title_prefix)
 
 
-datasets = ('CORe50', 'RotatedMNIST', 'RotatedCIFAR10')
-fig = plt.figure(constrained_layout=True, figsize=(5, 10))
+datasets = ('CORe50', 'RotatedCIFAR10', 'RotatedMNIST')
+fig = plt.figure(constrained_layout=True, figsize=(8 if args.plt_per_task else 5, 10))
 command = subprocess.Popen('pwd | xargs basename',
                            shell=True, stdout=subprocess.PIPE)
 for line in command.stdout.readlines():
@@ -165,16 +174,24 @@ for d in datasets:
     ax = fig.add_subplot(gs[rows, col], label=d)
     f = None
 
-    file_pattern = "'*_Nets_" + args.task_predictor + (".csv'" if args.task_predictor == "OC" else ".npy'")
-    numpy_file = False if args.task_predictor == "OC" else True
+    file_pattern = "'*_Nets_" + args.tp + (".csv'" if args.tp == "OC" else ".npy'")
+    one_class = True if args.tp == "OC" else False
     command = subprocess.Popen("find " + args.resultsDir + " -iname " + file_pattern + " | grep " + d,
                                shell=True, stdout=subprocess.PIPE)
 
     for line in command.stdout.readlines():
         f = line.decode("utf-8").replace('\n', '')
-        print(f)
-        read_file_plot_roc_cur_auc(f, ax, d, numpy_file=numpy_file)
+        if f.split('/')[-1].find(d) > -1:
+            print(f)
+            read_file_plot_roc_cur_auc(f, ax, d, one_class=one_class)
 
     rows += 1
+save_file = args.resultsDir
+save_file += '/AUC_'
+save_file += 'per-task_' if args.plt_per_task else ''
+save_file += args.tp
 
+print('File path = {}'.format(save_file))
+plt.savefig(save_file + '.pdf')
+plt.savefig(save_file + '.png')
 plt.show()
