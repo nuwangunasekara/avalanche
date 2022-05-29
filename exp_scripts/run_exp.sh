@@ -72,7 +72,7 @@ tp_lr_decay='0.999995'
 # None
 tp_tf='N'
 # Most Confident
-tp_tf='MC'
+#tp_tf='MC'
 
 
 model='SimpleCNN'
