@@ -258,7 +258,8 @@ def main(args):
             instance_buffer_size_per_frozen_nw=args.mem_buff_size,
             cnn_type=args.module,
             lr_decay=args.lr_decay,
-            dl=args.dl
+            dl=args.dl,
+            tf=args.tf
             )
 
         # x_shape = (x_shape[1], x_shape[2], x_shape[0])
@@ -473,8 +474,13 @@ if __name__ == '__main__':
                         action='store_true')
     parser.add_argument('--no-dl', dest='dl',
                         action='store_false')
-    parser.set_defaults(use_quantized=True)
+    parser.set_defaults(dl=True)
 
+
+    parser.add_argument('--tf', type=str, default='N',
+                        choices=['N', 'MC'],
+                        help='Train Frozen'
+                             'N: None, MC: Most Confident')
 
     args = parser.parse_args()
 

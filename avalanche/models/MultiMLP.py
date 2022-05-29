@@ -72,6 +72,9 @@ PREDICT_METHOD_NW_CONFIDENCE = 4
 PREDICT_METHOD_NAIVE_BAYES = 5
 PREDICT_METHOD_HT = 6
 
+TRAIN_FROZEN_NONE = 0
+TRAIN_FROZEN_MOST_CONFIDENT = 1
+
 NO_OF_CHANNELS = 3
 
 augmentor = transforms.Compose([
@@ -1037,7 +1040,8 @@ class MultiMLP(nn.Module):
                  instance_buffer_size_per_frozen_nw=200,
                  cnn_type='SimpleCNN',
                  lr_decay=1.0,
-                 dl=True
+                 dl=True,
+                 tf='N'
                  ):
         super().__init__()
 
@@ -1071,6 +1075,14 @@ class MultiMLP(nn.Module):
         self.instance_buffer_size_per_frozen_nw = instance_buffer_size_per_frozen_nw
         self.cnn_type = cnn_type
         self.dl = dl
+        self.train_frozen = None
+        if tf == 'N':
+            self.train_frozen = TRAIN_FROZEN_NONE
+        elif tf == 'MC':
+            self.train_frozen = TRAIN_FROZEN_MOST_CONFIDENT
+        else:
+            print('Unhandled tf type: {}'.format(tf))
+            exit(1)
 
         # status variables
         self.train_nets = []  # type: List[ANN]
@@ -1656,16 +1668,15 @@ class MultiMLP(nn.Module):
                 xx.append(xxx)
                 yy.append(yyy)
 
-        frozen_indexes = []
-        # random train frozen
-        if len(frozen_indexes) > 0:
-            if detected_task_id < len(frozen_indexes) and detected_task_id_confidence > 0.5:
-                # frozen_indexes = [sample(frozen_indexes, 1)[0]]  # random train frozen
+        # train frozen
+        if self.train_frozen != TRAIN_FROZEN_NONE and len(frozen_indexes) > 0:
+            if self.train_frozen == TRAIN_FROZEN_MOST_CONFIDENT and detected_task_id < len(frozen_indexes) and detected_task_id_confidence > 0.7:
                 frozen_indexes = [detected_task_id]
-                for i in frozen_indexes:
-                    train_nn_list.append(self.frozen_nets[i])
-                    xx.append(xxx)
-                    yy.append(yyy)
+            # frozen_indexes = [sample(frozen_indexes, 1)[0]]  # random train frozen
+            for i in frozen_indexes:
+                train_nn_list.append(self.frozen_nets[i])
+                xx.append(xxx)
+                yy.append(yyy)
 
         if self.use_static_f_ex:
             static_features = self.get_static_features(xxx, self.f_ex, fx_device=self.f_ex_device)
@@ -1711,29 +1722,6 @@ class MultiMLP(nn.Module):
         outputs = train_nn_list[nn_with_lowest_loss].outputs
         self.clear_frozen_pool()
         return outputs[:r]
-
-    # def add_to_train_pool(self, nn_with_lowest_loss):
-    #     print("Adding item to training pool===")
-    #     # Append a copy of nn_with_lowest_loss to the training pool
-    #     model_save_name = 'tmp'
-    #     abstract_model_file_name = os.path.join(self.model_dump_dir, model_save_name)
-    #     nn_model_file_name = os.path.join(self.model_dump_dir, model_save_name + '_nn')
-    #
-    #     save_model(self.train_nets[nn_with_lowest_loss], abstract_model_file_name, nn_model_file_name, preserve_net=True)
-    #     tmp_model = load_model(abstract_model_file_name, nn_model_file_name)
-    #
-    #     self.train_nets.append(tmp_model)
-    #     os.remove(abstract_model_file_name)
-    #     os.remove(nn_model_file_name)
-    #
-    #
-    #     if self.train_nets[nn_with_lowest_loss].task_detected:
-    #         # preserve the old loss estimator on this NW as we are going to train NB with newly added NW
-    #         # self.train_nets[nn_with_lowest_loss].loss_estimator = self.train_nets[nn_with_lowest_loss].old_loss_estimator
-    #         pass
-    #     self.train_nets[nn_with_lowest_loss].old_loss_estimator = None
-    #
-    #     self.detected_task_id += 1
 
     def add_to_frozen_pool(self):
         if self.max_frozen_pool_size == -1 or (
