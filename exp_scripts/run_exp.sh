@@ -13,8 +13,8 @@ dataset=(CORe50 RotatedMNIST RotatedCIFAR10 )
 dataset=(RotatedMNIST RotatedCIFAR10 CORe50 CLStream51)
 dataset=(RotatedMNIST RotatedCIFAR10 CORe50 MiniImagenetNoise MiniImagenetOcclusion MiniImagenetBlur)
 dataset=(RotatedMNIST RotatedCIFAR10 CORe50)
-strategy=(LwF EWC GDumb ER TrainPool)
-strategy=(LwF EWC GDumb ER)
+strategy=(LwF EWC GDumb ER MIR TrainPool)
+strategy=(LwF EWC GDumb ER MIR)
 strategy=(TrainPool)
 
 train_mb_size='16'
@@ -73,6 +73,8 @@ tp_lr_decay='0.999995'
 tp_tf='N'
 # Most Confident
 #tp_tf='MC'
+# Round Robin
+#tp_tf='RR'
 
 
 model='SimpleCNN'
@@ -141,7 +143,11 @@ do
           log_file_name="${log_file_name}_${model}_b1000"
           ;;
         ER)
-          command_args="${command_args} --module ${model} --optimizer ${optimizer} --lr ${l_rate} --hs 1024 --mem_buff_size 1000"
+          command_args="${command_args} --module ${model} --optimizer ${optimizer} --lr ${l_rate} --hs 1024 --mem_buff_size 1000 --retrieve random --update random"
+          log_file_name="${log_file_name}_${model}_b1000"
+          ;;
+        MIR)
+          command_args="${command_args} --module ${model} --optimizer ${optimizer} --lr ${l_rate} --hs 1024 --mem_buff_size 1000 --retrieve MIR --update random"
           log_file_name="${log_file_name}_${model}_b1000"
           ;;
         TrainPool)
@@ -229,6 +235,7 @@ do
 
       if [ -n "$command_args" ] ; then
         full_log_file="${log_dir}/exp_logs/$log_file_name"
+#        echo "$command_args"
         echo "python $app_path $command_args &>${full_log_file}"
         echo "Log file: $full_log_file"
         time python $app_path $command_args &>$full_log_file &

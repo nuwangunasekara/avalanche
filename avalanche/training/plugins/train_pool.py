@@ -23,6 +23,8 @@ class TrainPoolPlugin(StrategyPlugin):
     def before_backward(self, strategy: 'BaseStrategy', **kwargs):
         pass
 
+    def before_training_exp(self, strategy: 'BaseStrategy', **kwargs):
+        strategy.model.last_trained_frozen_for_RR = -1
 
     def after_training_exp(self, strategy: 'BaseStrategy', **kwargs):
         if strategy.model.auto_detect_tasks:
@@ -48,6 +50,7 @@ class TrainPoolPlugin(StrategyPlugin):
         strategy.model.mb_task_id = None
 
     def after_eval(self, strategy: 'BaseStrategy', **kwargs):
+        strategy.model.calculate_nw_accuracy()
         strategy.model.print_stats(dumped_at='after_eval')
         strategy.model.clear_frozen_pool()
         strategy.model.save_nb_predictions()

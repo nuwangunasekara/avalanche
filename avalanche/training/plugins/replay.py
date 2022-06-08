@@ -14,6 +14,8 @@ from avalanche.benchmarks.utils.data_loader import \
     ReplayDataLoader
 from avalanche.models import FeatureExtractorBackbone
 from avalanche.training.plugins.strategy_plugin import StrategyPlugin
+from avalanche.models.MultiMLP import NewBuffer
+from avalanche.OnlineContinualLearning.utils.buffer import buffer
 
 if TYPE_CHECKING:
     from avalanche.training.strategies import BaseStrategy
@@ -76,6 +78,66 @@ class ReplayPlugin(StrategyPlugin):
 
     def after_training_exp(self, strategy: "BaseStrategy", **kwargs):
         self.storage_policy(strategy, **kwargs)
+
+
+class OCLOnlineReplayPlugin(StrategyPlugin):
+    def __init__(self,  params, model=None):
+        super().__init__()
+        self.buffer = buffer.Buffer(model, params)
+
+    def before_forward(self, strategy: 'BaseStrategy', **kwargs):
+        # if self.buffer is None:
+        #     self.buffer = NewBuffer(self.mem_size, strategy.mb_y.device)
+        x_mix, y_mix = self.buffer.retrieve(x=strategy.mb_x, y=strategy.mb_y)
+        if x_mix.size(0) > 0:
+            self.buffer.update(strategy.mb_x, strategy.mb_y)
+            strategy.mbatch[0] = x_mix
+            strategy.mbatch[1] = y_mix
+            strategy.mbatch[2] = torch.zeros_like(strategy.mb_task_id)
+        else:
+            self.buffer.update(strategy.mb_x, strategy.mb_y)
+
+
+class OnlineReplayPlugin(StrategyPlugin):
+    """
+    Online Experience replay plugin.
+
+
+    The :mem_size: attribute controls the total number of patterns to be stored
+    in the external memory.
+    """
+
+    def __init__(self, mem_size: int = 200):
+        super().__init__()
+        self.mem_size = mem_size
+        self.buffer = None
+
+    def before_forward(self, strategy: 'BaseStrategy', **kwargs):
+        if self.buffer is None:
+            self.buffer = NewBuffer(self.mem_size, strategy.mb_y.device)
+        if not self.buffer.is_empty():
+            buf_inputs, buf_labels, buf_tids, buf_indexes = self.buffer.get_data_from_all_tasks(
+                strategy.mb_x.shape[0],  # batch size
+                transform=None,
+                return_indexes=True)
+            x_mix = torch.cat((strategy.mb_x, buf_inputs))
+            y_mix = torch.cat((strategy.mb_y, buf_labels))
+            t_mix = torch.cat((strategy.mb_task_id, buf_tids))
+        else:
+            x_mix = strategy.mb_x
+            y_mix = strategy.mb_y
+            t_mix = strategy.mb_task_id
+
+        self.buffer.add_data(examples=strategy.mb_x,
+                             labels=strategy.mb_y,
+                             task_labels=torch.ones_like(strategy.mb_y)*strategy.mb_task_id
+                             )
+
+        # strategy.mb_x = x_mix
+        # strategy.mb_y = y_mix
+        strategy.mbatch[0] = x_mix
+        strategy.mbatch[1] = y_mix
+        strategy.mbatch[2] = t_mix
 
 
 class StoragePolicy(ABC):
