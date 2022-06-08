@@ -1694,9 +1694,9 @@ class MultiMLP(nn.Module):
     def increment_NW_accuraccy_counters_for_test(self, nn_list, x=None, y=None):
         for i in range(len(nn_list)):
             net = nn_list[i]
-            net.correct_class_predicted_at_test_after_training_each_task['t{}_f{}'.format(self.training_exp - 1, net.frozen_index)] += (
+            self.correct_class_predicted_at_test_after_training_each_task['t{}_f{}'.format(self.training_exp - 1, net.frozen_index)] += (
                     net.outputs.argmax(1) == y).type(torch.float).sum().item()
-            net.samples_seen_at_test_after_training_each_task['t{}_f{}'.format(self.training_exp - 1, net.frozen_index)] += x.shape[0]
+            self.samples_seen_at_test_after_training_each_task['t{}_f{}'.format(self.training_exp - 1, net.frozen_index)] += x.shape[0]
 
     def call_backprop(self, nn_list):
         t = []
