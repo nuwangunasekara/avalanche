@@ -1,6 +1,3 @@
-# from pudb import set_trace; set_trace()
-# import faulthandler
-# faulthandler.enable()
 import os.path
 import shutil
 
@@ -8,7 +5,7 @@ from avalanche.benchmarks import *
 from avalanche.benchmarks.classic.ccifar10 import RotatedCIFAR10_di
 from avalanche.benchmarks.classic.stream51 import CLStream51
 
-from avalanche.training.strategies import TrainPool, EWC, LwF, GDumb, OnlineReplay, OCLOnlineReplay
+from avalanche.training.strategies import *
 from avalanche.models import *
 # from avalanche.models.hnet import HCNN
 from avalanche.models.MultiMLP import SimpleCNN, CNN4, count_parameters
@@ -331,26 +328,12 @@ def main(args):
                          eval_mb_size=args.eval_mb_size,
                          evaluator=eval_plugin)
     elif args.strategy == 'ER':
-        strategy = OCLOnlineReplay(model, optimizer, criterion,
-                                params=args,
-                                train_epochs=args.epochs, device=device,
-                                train_mb_size=args.train_mb_size,
-                                eval_mb_size=args.eval_mb_size,
-                                evaluator=eval_plugin)
-        # strategy = OnlineReplay(model, optimizer, criterion,
-        #                   mem_size=args.mem_buff_size,
-        #                   train_epochs=args.epochs, device=device,
-        #                   train_mb_size=args.train_mb_size,
-        #                   eval_mb_size=args.eval_mb_size,
-        #                   evaluator=eval_plugin)
-    elif args.strategy == 'MIR':
-        # OCLOnlineReplay
-        strategy = OCLOnlineReplay(model, optimizer, criterion,
-                                params=args,
-                                train_epochs=args.epochs, device=device,
-                                train_mb_size=args.train_mb_size,
-                                eval_mb_size=args.eval_mb_size,
-                                evaluator=eval_plugin)
+        strategy = Replay(model, optimizer, criterion,
+                          mem_size=args.mem_buff_size,
+                          train_epochs=args.epochs, device=device,
+                          train_mb_size=args.train_mb_size,
+                          eval_mb_size=args.eval_mb_size,
+                          evaluator=eval_plugin)
 
     # for j in range(len(scenario.train_stream)):
     #     print('Task: {} size: {}'.format(j, len(scenario.train_stream[j].dataset)))
@@ -495,40 +478,11 @@ if __name__ == '__main__':
 
 
     parser.add_argument('--tf', type=str, default='N',
-                        choices=['N', 'MC', 'RR'],
+                        choices=['N', 'MC'],
                         help='Train Frozen'
-                             'N: None, MC: Most Confident, RR: Round Robin')
+                             'N: None, MC: Most Confident')
 
-    parser.add_argument('--agent', dest='agent', default='ER',
-                        choices=['ER', 'EWC', 'AGEM', 'CNDPM', 'LWF', 'ICARL', 'GDUMB', 'ASER', 'SCR'],
-                        help='Agent selection  (default: %(default)s)')
-    parser.add_argument('--update', dest='update', default='random', choices=['random', 'GSS', 'ASER'],
-                        help='Update method  (default: %(default)s)')
-    parser.add_argument('--retrieve', dest='retrieve', default='random', choices=['MIR', 'random', 'ASER', 'match', 'mem_match'],
-                        help='Retrieve method  (default: %(default)s)')
-
-    parser.add_argument('--eps_mem_batch', dest='eps_mem_batch', default=-1,
-                        type=int,
-                        help='Episode memory per batch (default: %(default)s)')
-
-    ########################MIR#########################
-    parser.add_argument('--subsample', dest='subsample', default=50,
-                        type=int,
-                        help='Number of subsample to perform MIR(default: %(default)s)')
-
-    ####################################################
-    parser.add_argument('--mem_size', type=int, default=-1, help='Memory buffer size for replay methods(GDumb,ER,MIR)')
-
-    parser.add_argument('--data', type=str, default='', help='Dataset')
-
-    parser.add_argument('--learning_rate', dest='learning_rate', default=0.1, type=float, help='Learning_rate (default: %(default)s)')
     args = parser.parse_args()
-
-    args.mem_size = args.mem_buff_size
-    args.data = args.dataset
-    args.eps_mem_batch = args.train_mb_size
-    args.buffer_tracker = False
-    args.learning_rate = args.lr
 
     print(args)
 

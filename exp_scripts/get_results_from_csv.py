@@ -6,8 +6,8 @@ import numpy as np
 import re
 import subprocess
 import argparse
-# from get_frozen_nets import get_net_info
-# import matplotlib
+from get_frozen_nets import get_net_info
+import matplotlib
 from matplotlib.pylab import plt
 
 pd.set_option('display.max_rows', None)
@@ -50,8 +50,8 @@ df_all = pd.DataFrame(columns=['dataset', 'strategy', 'sub_strategy', 'eval_accu
 
 for csv_file in csv_files:
     print(csv_file)
-    # log_file = csv_file.replace('/csv_data/', '/exp_logs/').replace('/eval_results.csv', '')
-    # df_frozen, df_correct = get_net_info(log_file)
+    log_file = csv_file.replace('/csv_data/', '/exp_logs/').replace('/eval_results.csv', '')
+    df_frozen, df_correct = get_net_info(log_file)
     df = pd.read_csv(csv_file)
     last_exp_id = df['training_exp'].max()
     last_exp_id_str = str(last_exp_id)
@@ -154,23 +154,17 @@ colors = {'EWC': 'black',
           'RANDOM': 'gold',
           'TASK_ID_KNOWN': 'red'}
 colors2 = {'black',
-           'darkgrey',
-           'darkviolet',
-           'violet',
-           'darkorange',
-           'greenyellow',
-           'forestgreen',
-           'fuchsia',
-           'dodgerblue',
-           'blue',
-           'gold',
-           'red',
-           'sandybrown',
-           # 'orange',
-           'green',
-           'blue',
-           'springgreen'
-           }
+          'darkgrey',
+          'darkviolet',
+          'violet',
+          'darkorange',
+          'greenyellow',
+          'forestgreen',
+          'fuchsia',
+          'dodgerblue',
+          'blue',
+          'gold',
+          'red'}
 used_colors = []
 already_ploted = {}
 already_ploted_count = {}
@@ -189,11 +183,11 @@ for d in datasets:
     col = 0
     # RotatedMNIST RotatedCIFAR10 CORe50
     if d == 'CORe50':
-        y_max=1.00
+        y_max=0.80
         y_min=0.17
     elif d == 'RotatedCIFAR10':
         y_max=0.55
-        y_min=0.20
+        y_min=0.30
     elif d == 'RotatedMNIST':
         y_max=1.00
         y_min=0.25
@@ -227,8 +221,6 @@ for d in datasets:
                 for top_dir in top_dirs:
                     if s == 'TrainPool' and top_dir == 'ER_SimpleCNN':
                         continue
-                    if s == 'MIR' and top_dir != 'MIR_onlineCLBuff':
-                        continue
                     p_df = df_all.query(
                         'dataset .str.contains("' + d + '") and strategy.str.contains("' + s + '") and sub_strategy.str.contains("' + sub_s +'") and top_dir.str.contains("'+ top_dir +'") and eval_exp == ' + str(e), engine='python')
                     if p_df.empty:
@@ -237,19 +229,13 @@ for d in datasets:
                     line_type = line[0]
                     if s == 'TrainPool':
                         label = 'ODIN_' + top_dir
-                    elif s == 'ER':
-                        if top_dir == 'onlineCLBuff':
-                            label = 'ER'
-                        else:
-                            label = 'ER_' + top_dir
-                        line_type = line[1]
                     else:
                         label = s
                         if sub_s == 'SimpleCNN':
-                                line_type = line[1]
+                            line_type = line[1]
 
-                    # combination = s + (top_dir if s == 'TrainPool' else '')
-                    combination = label
+
+                    combination = s + (top_dir if s == 'TrainPool' else '')
                     # print(combination, already_ploted)
                     if already_ploted.get(combination, None) is None:
                         color = list(colors2 - set(already_ploted.values()))[0]
