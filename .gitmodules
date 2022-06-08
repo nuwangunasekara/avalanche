@@ -1,0 +1,3 @@
+[submodule "avalanche/OnlineContinualLearning"]
+	path = avalanche/OnlineContinualLearning
+	url = git@github.com:nuwangunasekara/online-continual-learning.git
