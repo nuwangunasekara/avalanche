@@ -289,7 +289,7 @@ for d in datasets:
     plt.subplots_adjust(left=0.04, right=0.99)
     # fig.suptitle(fig_title)
     plt.savefig(args.resultsDir + '/Per-Task_' + d + '.pdf')
-    plt.savefig(args.resultsDir + '/Per-Task_' + d + '.png')
+    # plt.savefig(args.resultsDir + '/Per-Task_' + d + '.png')
     # plt.savefig(args.resultsDir + '/Per-Task_' + d + '.svg')
     # plt.show()
 # input()
