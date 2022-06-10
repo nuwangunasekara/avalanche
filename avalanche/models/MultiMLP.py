@@ -41,6 +41,8 @@ import torchvision.models.quantization as models
 # import network_Gray_ResNet
 from avalanche.models import network_Gray_ResNet
 
+# from torchinfo import summary
+
 Sigmoid = 1
 Tanh = 2
 Relu = 3
@@ -1170,11 +1172,12 @@ def save_model(best_model: ANN, abstract_model_file_name, nn_model_file_name, pr
         best_model.net = net
 
 
-def load_model(abstract_model_file_name, nn_model_file_name):
+def load_model(abstract_model_file_name, nn_model_file_name, load_eval_mode=True):
     abstract_model: ANN = load(abstract_model_file_name)
     abstract_model.initialize_network()
     abstract_model.net.load_state_dict(torch.load(nn_model_file_name))
-    abstract_model.net.eval()
+    if load_eval_mode:
+        abstract_model.net.eval()
     return abstract_model
 
 
@@ -1526,14 +1529,15 @@ class MultiMLP(nn.Module):
 
         self.frozen_nets = []
 
-    def load_frozen_pool(self):
+    def load_frozen_pool(self, load_eval_mode=True):
         if len(self.frozen_nets) != 0:
             # print('Frozen pool is not empty')
             return
 
         for i in range(len(self.frozen_net_module_paths)):
             self.frozen_nets.append(load_model(self.frozen_net_module_paths[i]['abstract_model_file_name'],
-                                               self.frozen_net_module_paths[i]['nn_model_file_name']))
+                                               self.frozen_net_module_paths[i]['nn_model_file_name'],
+                                               load_eval_mode=load_eval_mode))
 
     # def reset(self):
     #     if self.reset_training_pool:
@@ -1883,11 +1887,11 @@ class MultiMLP(nn.Module):
             x_mix = x
             y_mix = y
 
-        self.load_frozen_pool()
-        frozen_indexes = [i for i in range(len(self.frozen_nets))]
+        trained_frozen_index = []
         if frozen_pool_full:
+            self.load_frozen_pool(load_eval_mode=False)
             train_nn_list.append(self.frozen_nets[nw_id])
-            frozen_indexes.remove(nw_id)
+            trained_frozen_index.append(nw_id)
             x_to_use.append(x_mix)
             y_to_use.append(y_mix)
         else:
@@ -1902,18 +1906,22 @@ class MultiMLP(nn.Module):
                 y_to_use.append(y_mix)
 
         # train frozen
-        if self.train_frozen != TRAIN_FROZEN_NONE and len(frozen_indexes) > 0:
-            frozen_indexes = []
+        if self.train_frozen != TRAIN_FROZEN_NONE and len(self.frozen_net_module_paths) > 0:
+            self.load_frozen_pool(load_eval_mode=False)
+            frozen_indexes_to_train = []
             if self.train_frozen == TRAIN_FROZEN_MOST_CONFIDENT and detected_task_id < len(self.frozen_net_module_paths):
-                frozen_indexes = [detected_task_id]
+                frozen_indexes_to_train = [detected_task_id]
             elif self.train_frozen == TRAIN_FROZEN_ROUND_ROBIN and len(self.frozen_net_module_paths) > 0:
                 if self.last_trained_frozen_for_RR + 1 < len(self.frozen_net_module_paths):
                     self.last_trained_frozen_for_RR += 1
                 else:
                     self.last_trained_frozen_for_RR = 0
-                frozen_indexes = [self.last_trained_frozen_for_RR]
-            # frozen_indexes = [sample(frozen_indexes, 1)[0]]  # random train frozen
-            for i in frozen_indexes:
+                frozen_indexes_to_train = [self.last_trained_frozen_for_RR]
+            # frozen_indexes_to_train = [sample(frozen_indexes_to_train, 1)[0]]  # random train frozen
+            # frozen_indexes_to_train = [i for i in range(len(self.frozen_nets))] # train all
+            # remove trained_frozen_index from  frozen_indexes_to_train
+            frozen_indexes_to_train = list(set(frozen_indexes_to_train).difference(set(trained_frozen_index)))
+            for i in frozen_indexes_to_train:
                 self.buffer_used_for_train_count['f_{}'.format(i)] += 1
                 train_nn_list.append(self.frozen_nets[i])
                 if self.train_frozen == TRAIN_FROZEN_ROUND_ROBIN and self.buffer.data_available_for_task(i):

@@ -38,7 +38,7 @@ class TrainPoolPlugin(StrategyPlugin):
         pass
 
     def before_eval(self, strategy: 'BaseStrategy', **kwargs):
-        strategy.model.load_frozen_pool()
+        strategy.model.load_frozen_pool(load_eval_mode=True)
 
     def before_eval_forward(self, strategy: 'BaseStrategy', **kwargs):
         strategy.model.call_predict = True
