@@ -1177,7 +1177,12 @@ def load_model(abstract_model_file_name, nn_model_file_name, load_eval_mode=True
     abstract_model.initialize_network()
     abstract_model.net.load_state_dict(torch.load(nn_model_file_name))
     if load_eval_mode:
+        for param in abstract_model.net.parameters():
+            param.requires_grad = False
         abstract_model.net.eval()
+    else: # load model for training
+        for param in abstract_model.net.parameters():
+            param.requires_grad = True
     return abstract_model
 
 
