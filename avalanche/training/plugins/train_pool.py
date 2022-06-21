@@ -30,8 +30,12 @@ class TrainPoolPlugin(StrategyPlugin):
         if strategy.model.auto_detect_tasks:
             pass
         else:
-            strategy.model.add_to_frozen_pool()
+            strategy.model.add_to_frozen_paths()
         strategy.model.print_stats(dumped_at='after_training')
+        if strategy.model.auto_detect_tasks:
+            pass
+        else:
+            strategy.model.reset_training_pool_f()
         strategy.model.training_exp += 1
 
     def after_training(self, strategy: 'BaseStrategy', **kwargs):

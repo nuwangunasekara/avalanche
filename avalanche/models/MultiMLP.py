@@ -1544,15 +1544,12 @@ class MultiMLP(nn.Module):
                                                self.frozen_net_module_paths[i]['nn_model_file_name'],
                                                load_eval_mode=load_eval_mode))
 
-    # def reset(self):
-    #     if self.reset_training_pool:
-    #         # configuration variables (which has the same name as init parameters) should be copied by the caller function
-    #         for i in range(len(self.train_nets)):
-    #             self.train_nets[i] = None
-    #         self.train_nets = None
-    #         self.train_nets = []  # type: List[ANN]
-    #         self.create_nn_pool()
-    #     return self
+    def reset_training_pool_f(self):
+        if self.reset_training_pool:
+            for i in range(len(self.train_nets)):
+                del self.train_nets[i]  # clear chosen net's memory
+            self.train_nets = []  # type: List[ANN]
+            self.create_nn_pool()
 
     def reset_one_class_detectors_and_loss_estimators_seen_task_ids(self):
         for n in self.train_nets:
@@ -1570,17 +1567,7 @@ class MultiMLP(nn.Module):
     def add_nn_with_lowest_loss_to_frozen_list(self):
         idx = self.get_nn_index_with_lowest_or_highest_loss(self.train_nets, use_estimated_loss=True)
         self.print_nn_list([self.train_nets[idx]], list_type='train_net', dumped_at='task_detect')
-
-        # for i in range(len(self.train_nets)):
-        #     if i != idx:  # clear other nets memory
-        #         if self.reset_training_pool:
-        #             self.train_nets[i] = None
-
         self.save_best_model_and_append_to_paths(idx)
-
-        if self.reset_training_pool:
-            self.train_nets[idx] = None  # clear chosen net's memory
-
         self.detected_task_id += 1
 
     def save_nb_predictions(self):
@@ -1967,6 +1954,11 @@ class MultiMLP(nn.Module):
                              )
         self.reset_loss_and_bp_buffers(train_nn_list)
 
+        train_nn_list[nn_with_lowest_loss].chosen_after_train += r
+        outputs = train_nn_list[nn_with_lowest_loss].outputs.clone()
+
+        self.clear_frozen_pool()
+
         if self.auto_detect_tasks:
             task_detected = False
             for m in train_nn_list:
@@ -1974,14 +1966,12 @@ class MultiMLP(nn.Module):
                     task_detected = True
             if task_detected:
                 self.samples_seen_for_train_after_dd = 0
-                self.add_to_frozen_pool()
+                self.add_to_frozen_paths()
+                self.reset_training_pool_f()
 
-        train_nn_list[nn_with_lowest_loss].chosen_after_train += r
-        outputs = train_nn_list[nn_with_lowest_loss].outputs
-        self.clear_frozen_pool()
         return outputs[:r]
 
-    def add_to_frozen_pool(self):
+    def add_to_frozen_paths(self):
         if self.max_frozen_pool_size == -1 or (
                 self.max_frozen_pool_size > 0 and len(self.frozen_net_module_paths) < self.max_frozen_pool_size):
             self.add_nn_with_lowest_loss_to_frozen_list()
