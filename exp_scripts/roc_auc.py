@@ -98,6 +98,7 @@ def read_file_plot_roc_cur_auc(file_name, ax, title_prefix, one_class=False):
             roc_auc[i] = auc(fpr[i], tpr[i])
 
         # Compute micro-average ROC curve and ROC area
+        # https://scikit-learn.org/stable/auto_examples/model_selection/plot_roc.html
         fpr["micro"], tpr["micro"], _ = roc_curve(y.ravel(), p.ravel())
         roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
 
