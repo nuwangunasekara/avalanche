@@ -1868,35 +1868,20 @@ class MultiMLP(nn.Module):
 
         if self.buffer is None:
             self.buffer = NewBuffer(self.instance_buffer_size_per_frozen_nw, x.device)
-        if not self.buffer.is_empty() and self.buffer.data_available_for_task(detected_task_id):
-            buf_inputs, buf_labels, _, buf_indexes = self.buffer.get_data(
-                r,  # batch size
-                transform=None,
-                return_indexes=True,
-                task_id=detected_task_id)
-            x_mix = torch.cat((x, buf_inputs))
-            y_mix = torch.cat((y, buf_labels))
-        else:
-            x_mix = x
-            y_mix = y
 
         trained_frozen_index = []
         if frozen_pool_full:
             self.load_frozen_pool(load_eval_mode=False)
             train_nn_list.append(self.frozen_nets[nw_id])
             trained_frozen_index.append(nw_id)
-            x_to_use.append(x_mix)
-            y_to_use.append(y_mix)
+            x_to_use.append(x)
+            y_to_use.append(y)
         else:
             # train training NW/s
             for i in range(len(self.train_nets)):
                 train_nn_list.append(self.train_nets[i])
-                if detected_task_id < len(self.frozen_net_module_paths):# detected task id is in frozen nets
-                    self.buffer_used_for_train_count['t{}_f{}'.format(nw_id, detected_task_id)] += 1
-                else:# detected task id is probably current net
-                    self.buffer_used_for_train_count['t{}_t{}'.format(nw_id, detected_task_id)] += 1
-                x_to_use.append(x_mix)
-                y_to_use.append(y_mix)
+                x_to_use.append(x)
+                y_to_use.append(y)
 
         # train frozen
         if self.train_frozen != TRAIN_FROZEN_NONE and len(self.frozen_net_module_paths) > 0:
@@ -1917,7 +1902,7 @@ class MultiMLP(nn.Module):
             for i in frozen_indexes_to_train:
                 self.buffer_used_for_train_count['f_{}'.format(i)] += 1
                 train_nn_list.append(self.frozen_nets[i])
-                if self.train_frozen == TRAIN_FROZEN_ROUND_ROBIN and self.buffer.data_available_for_task(i):
+                if self.buffer.data_available_for_task(i):
                     buf_x, buf_y, _, buf_indx = self.buffer.get_data(
                         r,  # batch size
                         transform=None,
@@ -1925,9 +1910,6 @@ class MultiMLP(nn.Module):
                         task_id=i)
                     x_to_use.append(buf_x)
                     y_to_use.append(buf_y)
-                else:
-                    x_to_use.append(x_mix)
-                    y_to_use.append(y_mix)
 
         if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or \
                 self.task_detector_type == PREDICT_METHOD_HT or \
