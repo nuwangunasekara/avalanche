@@ -1828,7 +1828,7 @@ class MultiMLP(nn.Module):
             nn_with_lowest_loss_at_pred = self.get_nn_index_with_lowest_or_highest_loss(self.frozen_nets, use_estimated_loss=False, lowest_loss=True)
             self.samples_seen_for_test_by_task['t{}_e{}'.format(self.training_exp-1, true_task_id)] += r
             if self.task_detector_type != PREDICT_METHOD_MAJORITY_VOTE:
-                if nn_with_lowest_loss_at_pred == best_matched_frozen_nn_idx:
+                if nn_with_lowest_loss_at_pred == best_matched_frozen_nn_idx == true_task_id:
                     self.correct_nn_with_lowest_loss_predicted['t{}_e{}'.format(self.training_exp-1, true_task_id)] += r
                 if self.use_weights_from_task_detectors:
                     pass
