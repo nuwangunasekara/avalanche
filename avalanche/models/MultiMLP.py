@@ -1241,7 +1241,7 @@ class MultiMLP(nn.Module):
         self.use_static_f_ex = use_static_f_ex
         self.one_class_stats_file = sys.stdout
         self.one_class_stats_header_printed = False
-        self.nb_stats_file = sys.stdout
+        self.nb_stats_file = None
         self.train_nn_using_ex_static_f = train_nn_using_ex_static_f
         self.use_1_channel_pretrained_for_1_channel = use_1_channel_pretrained_for_1_channel
         self.use_quantized = use_quantized
@@ -1300,10 +1300,6 @@ class MultiMLP(nn.Module):
         # init status variables
 
         self.heading_printed = False
-        self.nb_stats_file = sys.stdout if self.stats_file is sys.stdout else \
-            self.stats_file.replace('.csv',
-                                    '_NB') if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES else self.stats_file.replace(
-                '.csv', '_HT') if self.task_detector_type == PREDICT_METHOD_HT else sys.stdout
         self.one_class_stats_file = sys.stdout if self.stats_file is sys.stdout else \
             open(self.stats_file.replace('.csv', '_OC.csv'),
                  'w') if self.task_detector_type == PREDICT_METHOD_ONE_CLASS else sys.stdout
@@ -1572,8 +1568,13 @@ class MultiMLP(nn.Module):
 
     def save_nb_predictions(self):
         if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_HT:
-            if self.training_exp == self.n_experiences:
+            if self.nb_stats_file is None:
+                suffix = '_{}'.format(str(self.training_exp - 1))
+                suffix += '_NB' if self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES else '_HT'
+                self.nb_stats_file = self.stats_file.name.replace('.csv', suffix)
                 np.save(self.nb_stats_file, self.nb_preds)
+                self.nb_stats_file = None
+                self.nb_preds = None
 
     def check_accuracy_of_nb(self, x):
         for i in range(len(x)):
@@ -1760,11 +1761,11 @@ class MultiMLP(nn.Module):
                     weights_for_frozen_nns, best_matched_frozen_nn_idx = \
                         self.get_best_matched_nn_index_and_weights_via_predictor(
                             self.task_detector_type, self.frozen_nets, static_features)
-                    if self.training_exp == self.n_experiences:
-                        if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
-                            self.check_accuracy_of_one_class_classifiers(x)
-                        elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_HT:
-                            self.check_accuracy_of_nb(x)
+                    # if self.training_exp == self.n_experiences:
+                    if self.task_detector_type == PREDICT_METHOD_ONE_CLASS:
+                        self.check_accuracy_of_one_class_classifiers(x)
+                    elif self.task_detector_type == PREDICT_METHOD_NAIVE_BAYES or self.task_detector_type == PREDICT_METHOD_HT:
+                        self.check_accuracy_of_nb(x)
 
                 elif self.task_detector_type == PREDICT_METHOD_RANDOM:
                     best_matched_frozen_nn_idx = random.randrange(0, len(self.frozen_nets))
